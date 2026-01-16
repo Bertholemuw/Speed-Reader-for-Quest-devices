@@ -1,0 +1,5 @@
+{
+  "name": "Quest RSVP Speed Reader",
+  "description": "An immersive, high-speed RSVP (Rapid Serial Visual Representation) reader optimized for Meta Quest 3, featuring Spritz-style word flashing and Gemini-powered smart summarization.",
+  "requestFramePermissions": []
+}
