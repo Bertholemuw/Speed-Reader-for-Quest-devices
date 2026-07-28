@@ -1,0 +1,9 @@
+node_modules/
+
+# Imported issues, solutions, screenshots and the entry ledger.
+data/
+
+# Real config holds a home address, phone number and date of birth.
+# Only the .example.json templates belong in git.
+config/*.json
+!config/*.example.json

@@ -1,0 +1,29 @@
+{
+  "name": "take5-autoentry",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Imports a Take 5 digital issue, solves every puzzle, and submits the prize entries.",
+  "scripts": {
+    "cli": "tsx src/cli.ts",
+    "serve": "tsx src/server.ts",
+    "schedule": "tsx src/schedule/weekly.ts",
+    "test": "tsx --test src/**/*.test.ts",
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^1.37.0",
+    "an-array-of-english-words": "^2.0.0",
+    "express": "^5.2.1",
+    "node-cron": "^4.6.0",
+    "pdfjs-dist": "^6.1.200",
+    "playwright": "^1.62.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.14.0",
+    "tsx": "^4.19.2",
+    "typescript": "~5.8.2"
+  }
+}

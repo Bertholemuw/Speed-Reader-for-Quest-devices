@@ -1,0 +1,32 @@
+{
+  "online-entry": {
+    "url": "https://example.com/competitions/enter",
+    "waitFor": "form#entry",
+    "dismiss": [
+      { "selector": "button:has-text(\"Accept all\")", "optional": true },
+      { "selector": "#onetrust-accept-btn-handler", "optional": true }
+    ],
+    "fields": [
+      { "selector": "#answer", "from": "answer", "type": "text", "optional": false },
+      { "selector": "#firstName", "from": "profile.firstName", "type": "text", "optional": false },
+      { "selector": "#lastName", "from": "profile.lastName", "type": "text", "optional": false },
+      { "selector": "#email", "from": "profile.email", "type": "text", "optional": false },
+      { "selector": "#phone", "from": "profile.phone", "type": "text", "optional": true },
+      { "selector": "#dob", "from": "profile.dateOfBirth", "type": "text", "optional": true },
+      { "selector": "#address1", "from": "profile.address.line1", "type": "text", "optional": false },
+      { "selector": "#suburb", "from": "profile.address.suburb", "type": "text", "optional": false },
+      { "selector": "#state", "from": "profile.address.state", "type": "select", "optional": false },
+      { "selector": "#postcode", "from": "profile.address.postcode", "type": "text", "optional": false },
+      { "selector": "#why", "from": "profile.tiebreaker", "type": "text", "optional": true },
+      { "selector": "#terms", "from": "literal", "value": "true", "type": "checkbox", "optional": false },
+      { "selector": "#marketing", "from": "literal", "value": "false", "type": "checkbox", "optional": true }
+    ],
+    "submit": { "selector": "button[type=\"submit\"]" },
+    "success": {
+      "selector": ".entry-confirmation",
+      "textContains": "Thanks for entering",
+      "urlContains": "/thank-you"
+    },
+    "timeoutMs": 30000
+  }
+}
