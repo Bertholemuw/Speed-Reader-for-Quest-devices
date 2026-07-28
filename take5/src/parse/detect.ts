@@ -50,6 +50,17 @@ export const RuleSchema = z.object({
   /** Smallest lattice that counts as this puzzle's grid. */
   minGrid: z.number().int().positive().default(4),
 });
+
+/**
+ * The number printed with a puzzle, which is also its box on the entry coupon —
+ * "12 QUICK CROSSWORD", "PUZZLE 12", "12. CODE CRACKER".
+ */
+export function couponNumberFrom(heading: string): number | undefined {
+  const match = /^\s*(?:puzzle\s*)?(?:no\.?\s*)?(\d{1,2})\b/i.exec(heading) ?? /\bpuzzle\s*(\d{1,2})\b/i.exec(heading);
+  if (!match) return undefined;
+  const number = Number(match[1]);
+  return number >= 1 && number <= 99 ? number : undefined;
+}
 export type Rule = z.infer<typeof RuleSchema>;
 
 export const RecipeSchema = z.object({
@@ -313,6 +324,12 @@ export function detectPuzzles(pages: PdfPage[], options: DetectOptions): Puzzle[
         warnings.push('no shaded squares found — nothing to spell the answer with');
       }
 
+      // Without this the answer has no box on the coupon and will be skipped.
+      const couponNumber = couponNumberFrom(heading.text);
+      if (couponNumber === undefined) {
+        warnings.push('no puzzle number in the heading — set the coupon box number by hand');
+      }
+
       puzzles.push({
         id: idFor(options.issueId, page.number, rule.kind, heading.text),
         issueId: options.issueId,
@@ -325,6 +342,7 @@ export function detectPuzzles(pages: PdfPage[], options: DetectOptions): Puzzle[
           formId: rule.formId || options.defaultFormId || '',
           answerFrom: rule.answerFrom,
           keywordCells,
+          couponNumber,
         },
         payload: built.payload,
         warnings,

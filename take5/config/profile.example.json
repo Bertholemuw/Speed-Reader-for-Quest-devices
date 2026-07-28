@@ -4,6 +4,7 @@
   "email": "jane@example.com",
   "phone": "0400 000 000",
   "dateOfBirth": "1975-04-19",
+  "gender": "Female",
   "address": {
     "line1": "12 Example Street",
     "line2": "",

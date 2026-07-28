@@ -93,7 +93,11 @@ async function main(): Promise<void> {
       const issue = await importIssue(path.resolve(file), settings);
       console.log(`imported ${issue.id} — ${issue.puzzles.length} puzzles`);
       for (const puzzle of issue.puzzles) {
-        console.log(`  ${puzzle.id.padEnd(24)} ${puzzle.kind.padEnd(11)} p${puzzle.page}  ${puzzle.title}`);
+        const box = puzzle.entry?.couponNumber;
+        console.log(
+          `  ${puzzle.id.padEnd(24)} ${puzzle.kind.padEnd(11)} p${puzzle.page}` +
+            `  box ${(box === undefined ? '—' : String(box)).padStart(2)}  ${puzzle.title}`,
+        );
         for (const warning of puzzle.warnings) console.log(`      ! ${warning}`);
       }
       break;
@@ -166,11 +170,15 @@ async function main(): Promise<void> {
     case 'record': {
       const url = args[0];
       if (!url) throw new Error('usage: record <url> [--headed]');
-      const { fields, draft } = await describeForm(url, !flag(args, 'headed'));
+      const { fields, draft } = await describeForm(url, {
+        ...settings,
+        headless: !flag(args, 'headed'),
+      });
       console.log('\nfields found:');
       for (const field of fields) {
         console.log(`  ${field.selector.padEnd(30)} ${field.type.padEnd(9)} ${field.label || field.placeholder || field.name}`);
       }
+      if (draft.frame) console.log(`\nform lives in an iframe: ${draft.frame}`);
       const out = path.join(store.root, 'form-draft.json');
       await store.init();
       await writeFile(out, JSON.stringify({ 'REPLACE-WITH-FORM-ID': draft }, null, 2));

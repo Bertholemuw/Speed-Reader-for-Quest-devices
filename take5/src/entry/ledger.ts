@@ -47,6 +47,16 @@ export class Ledger {
     return (await this.all()).some((r) => r.puzzleId === puzzleId && r.status === 'submitted');
   }
 
+  /**
+   * True once any coupon has been lodged for this issue. Take 5 allows a single
+   * online entry per issue, so a second coupon would put the first at risk.
+   */
+  async hasEnteredIssue(issueId: string, formId: string): Promise<boolean> {
+    return (await this.all()).some(
+      (r) => r.issueId === issueId && r.formId === formId && r.status === 'submitted',
+    );
+  }
+
   async forIssue(issueId: string): Promise<Receipt[]> {
     return (await this.all()).filter((r) => r.issueId === issueId);
   }

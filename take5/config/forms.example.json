@@ -1,32 +1,33 @@
 {
-  "online-entry": {
-    "url": "https://example.com/competitions/enter",
-    "waitFor": "form#entry",
+  "take5-online-coupon": {
+    "url": "https://www.nowtolove.com.au/puzzles/take-5-issue-29-2026-online-entry/",
+    "frame": "x.wayin.com",
+    "waitFor": "form#entries",
     "dismiss": [
-      { "selector": "button:has-text(\"Accept all\")", "optional": true },
+      { "selector": "button:has-text(\"Accept All\")", "optional": true },
       { "selector": "#onetrust-accept-btn-handler", "optional": true }
     ],
+    "puzzleField": "input[name=\"puzzle_{n}\" i]",
     "fields": [
-      { "selector": "#answer", "from": "answer", "type": "text", "optional": false },
-      { "selector": "#firstName", "from": "profile.firstName", "type": "text", "optional": false },
-      { "selector": "#lastName", "from": "profile.lastName", "type": "text", "optional": false },
-      { "selector": "#email", "from": "profile.email", "type": "text", "optional": false },
-      { "selector": "#phone", "from": "profile.phone", "type": "text", "optional": true },
-      { "selector": "#dob", "from": "profile.dateOfBirth", "type": "text", "optional": true },
-      { "selector": "#address1", "from": "profile.address.line1", "type": "text", "optional": false },
-      { "selector": "#suburb", "from": "profile.address.suburb", "type": "text", "optional": false },
-      { "selector": "#state", "from": "profile.address.state", "type": "select", "optional": false },
-      { "selector": "#postcode", "from": "profile.address.postcode", "type": "text", "optional": false },
-      { "selector": "#why", "from": "profile.tiebreaker", "type": "text", "optional": true },
-      { "selector": "#terms", "from": "literal", "value": "true", "type": "checkbox", "optional": false },
-      { "selector": "#marketing", "from": "literal", "value": "false", "type": "checkbox", "optional": true }
+      { "selector": "input[name=\"name_Firstname\"]", "from": "profile.firstName", "type": "text", "optional": false },
+      { "selector": "input[name=\"name_Lastname\"]", "from": "profile.lastName", "type": "text", "optional": false },
+      { "selector": "input[name=\"email\"]", "from": "profile.email", "type": "text", "optional": false },
+      { "selector": "input[name=\"phone\"]", "from": "profile.phone", "type": "text", "optional": false },
+      { "selector": "input[name=\"postal_address\"]", "from": "profile.address.line1", "type": "text", "optional": false },
+      { "selector": "input[name=\"postal_city\"]", "from": "profile.address.suburb", "type": "text", "optional": false },
+      { "selector": "input[name=\"State_and_Country\"]", "from": "profile.address.state", "type": "text", "optional": false },
+      { "selector": "input[name=\"postal_code\"]", "from": "profile.address.postcode", "type": "text", "optional": false },
+      { "selector": "input[name=\"birth_month_year_Month\"]", "from": "profile.dateOfBirth.month", "type": "text", "optional": false },
+      { "selector": "input[name=\"birth_month_year_Year\"]", "from": "profile.dateOfBirth.year", "type": "text", "optional": false },
+      { "selector": "input[name=\"gender\"]", "from": "profile.gender", "type": "text", "optional": true },
+      { "selector": "input[name=\"terms_and_conditions\"]", "from": "literal", "value": "true", "type": "checkbox", "optional": false }
     ],
-    "submit": { "selector": "button[type=\"submit\"]" },
+    "submit": { "selector": "form#entries button[type=\"submit\"], form#entries input[type=\"submit\"]" },
     "success": {
-      "selector": ".entry-confirmation",
-      "textContains": "Thanks for entering",
-      "urlContains": "/thank-you"
+      "selector": "",
+      "textContains": "thank",
+      "urlContains": ""
     },
-    "timeoutMs": 30000
+    "timeoutMs": 45000
   }
 }

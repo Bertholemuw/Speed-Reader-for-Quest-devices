@@ -29,8 +29,10 @@ const profile = ProfileSchema.parse({
 const forms: Forms = {
   'online-entry': {
     url: 'https://example.invalid/enter',
+    frame: '',
     waitFor: 'form',
     dismiss: [],
+    puzzleField: '',
     fields: [],
     submit: { selector: 'button' },
     success: { selector: '', textContains: 'thanks', urlContains: '' },

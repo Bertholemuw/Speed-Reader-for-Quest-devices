@@ -165,6 +165,25 @@ test('the crossword page is recognised, with blocks, clues and shaded squares', 
   );
 });
 
+test('the coupon box number is read off the printed heading', async () => {
+  const { couponNumberFrom } = await import('./detect.ts');
+  assert.equal(couponNumberFrom('12 QUICK CROSSWORD'), 12);
+  assert.equal(couponNumberFrom('PUZZLE 7 — CODE CRACKER'), 7);
+  assert.equal(couponNumberFrom('3. WORDSEARCH'), 3);
+  assert.equal(couponNumberFrom('No. 41 Sudoku'), 41);
+  assert.equal(couponNumberFrom('WORDSEARCH'), undefined, 'no number means no box');
+  assert.equal(couponNumberFrom('Win $2,000'), undefined, 'a prize is not a puzzle number');
+});
+
+test('a heading with no number is flagged rather than guessed', () => {
+  const [puzzle] = detectPuzzles([pages[0]], { issueId: 'test' });
+  assert.equal(puzzle.entry?.couponNumber, undefined);
+  assert.ok(
+    puzzle.warnings.some((w) => /coupon box number/.test(w)),
+    `expected a coupon-number warning, got ${JSON.stringify(puzzle.warnings)}`,
+  );
+});
+
 test('an imported wordsearch solves through to the posted answer', async () => {
   const [puzzle] = detectPuzzles([pages[0]], { issueId: 'test' });
   const solution = await solvePuzzle(puzzle, { oracle: NullOracle });

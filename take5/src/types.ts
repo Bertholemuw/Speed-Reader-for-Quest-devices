@@ -107,6 +107,12 @@ export interface EntrySpec {
   answerFrom: 'keyword' | 'grid' | 'phrase';
   keywordCells?: Cell[];
   phrase?: string;
+  /**
+   * Which numbered answer box on the issue's entry coupon this puzzle's answer
+   * belongs in. Take 5 lodges one coupon per issue carrying every answer, so
+   * without this a solved puzzle has nowhere to go.
+   */
+  couponNumber?: number;
 }
 
 export interface Puzzle {

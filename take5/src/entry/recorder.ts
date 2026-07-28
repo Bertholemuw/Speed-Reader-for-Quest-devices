@@ -1,6 +1,7 @@
-import { chromium } from 'playwright';
+import { chromium, type Frame } from 'playwright';
 import { logger } from '../logger.ts';
-import type { FormSpec } from '../config.ts';
+import { contextOptions, launchOptions } from './browser.ts';
+import type { FormSpec, Settings } from '../config.ts';
 
 const log = logger('recorder');
 
@@ -22,6 +23,8 @@ interface FoundField {
   placeholder: string;
   required: boolean;
   options: string[];
+  /** URL of the frame the field lives in; '' for the main document. */
+  frame: string;
 }
 
 /** name/label text -> profile path. First match wins, so order matters. */
@@ -51,17 +54,21 @@ function guessSource(field: FoundField): string {
   return 'literal';
 }
 
-export async function describeForm(url: string, headless = true): Promise<{
-  fields: FoundField[];
-  draft: FormSpec;
-}> {
-  const browser = await chromium.launch({ headless });
+export async function describeForm(
+  url: string,
+  settings: Settings,
+): Promise<{ fields: FoundField[]; draft: FormSpec }> {
+  const browser = await chromium.launch(launchOptions(settings));
   try {
-    const page = await browser.newPage();
+    const context = await browser.newContext(contextOptions(settings));
+    const page = await context.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await page.waitForTimeout(2_000); // let any client-rendered form settle
+    // Entry coupons are routinely third-party embeds that arrive late.
+    await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+    await page.waitForTimeout(2_000);
 
-    const fields = (await page.evaluate(() => {
+    const scan = async (frame: Frame): Promise<FoundField[]> => {
+    const found = (await frame.evaluate(() => {
       const cssEscape = (value: string) =>
         window.CSS?.escape ? window.CSS.escape(value) : value.replace(/[^\w-]/g, '\\$&');
 
@@ -106,22 +113,66 @@ export async function describeForm(url: string, headless = true): Promise<{
           };
         })
         .filter((f) => f.selector);
-    })) as FoundField[];
+      })) as FoundField[];
 
-    const submitSelector = await page.evaluate(() => {
+      return found.map((field) => ({ ...field, frame: frame.parentFrame() ? frame.url() : '' }));
+    };
+
+    // Entry coupons are often iframed in from a form host, so every frame is
+    // scanned and the one with the most fields wins.
+    const perFrame = await Promise.all(
+      page.frames().map((frame) => scan(frame).catch(() => [] as FoundField[])),
+    );
+    const all = perFrame.flat();
+    const byFrame = new Map<string, FoundField[]>();
+    for (const field of all) {
+      const bucket = byFrame.get(field.frame);
+      if (bucket) bucket.push(field);
+      else byFrame.set(field.frame, [field]);
+    }
+    const [bestFrame, fields] = [...byFrame.entries()].sort((a, b) => b[1].length - a[1].length)[0] ?? ['', []];
+
+    if (byFrame.size > 1) {
+      log.info(`fields found in ${byFrame.size} frames; using ${bestFrame || 'the main document'}`);
+    }
+
+    const host = page.frames().find((f) => (bestFrame ? f.url() === bestFrame : !f.parentFrame()));
+    const submitSelector = await (host ?? page.mainFrame()).evaluate(() => {
       const el = document.querySelector(
         'button[type="submit"], input[type="submit"], form button',
       );
       if (!el) return '';
       const id = el.getAttribute('id');
       return id ? `#${id}` : 'button[type="submit"]';
-    });
+    }).catch(() => '');
+
+    // A family of numbered fields (puzzle_1, puzzle_2, ...) means a single
+    // per-issue coupon rather than a form per puzzle. Those become the
+    // puzzleField template and are kept out of the personal-details list.
+    const families = new Map<string, number>();
+    for (const field of fields) {
+      const numbered = /^(.*?)(\d+)$/.exec(field.name);
+      if (numbered) families.set(numbered[1].toLowerCase(), (families.get(numbered[1].toLowerCase()) ?? 0) + 1);
+    }
+    const [couponPrefix, couponCount] = [...families.entries()].sort((a, b) => b[1] - a[1])[0] ?? ['', 0];
+    const isCoupon = couponCount >= 5;
+    const puzzleField = isCoupon ? `input[name="${couponPrefix}{n}" i]` : '';
+
+    if (isCoupon) {
+      log.info(`looks like a single coupon: ${couponCount} numbered "${couponPrefix}N" boxes`);
+    }
+
+    const personal = fields.filter(
+      (field) => !isCoupon || !new RegExp(`^${couponPrefix}\\d+$`, 'i').test(field.name),
+    );
 
     const draft: FormSpec = {
       url,
+      frame: bestFrame,
       waitFor: 'form',
       dismiss: [{ selector: 'button:has-text("Accept")', optional: true }],
-      fields: fields.map((field) => {
+      puzzleField,
+      fields: personal.map((field) => {
         const from = guessSource(field);
         const type =
           field.type === 'checkbox' ? 'checkbox' : field.type === 'radio' ? 'radio' : field.type === 'select' ? 'select' : 'text';

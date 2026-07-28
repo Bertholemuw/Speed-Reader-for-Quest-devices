@@ -1,13 +1,13 @@
 {
   "rules": [
-    { "kind": "crossword", "match": "\\b(quick\\s+)?crossword\\b", "formId": "online-entry", "answerFrom": "keyword", "minGrid": 5 },
-    { "kind": "crossword", "match": "\\bcryptic\\b", "formId": "online-entry", "cryptic": true, "minGrid": 5 },
-    { "kind": "codeword", "match": "\\b(code\\s*cracker|codeword|code\\s*word)\\b", "formId": "online-entry", "minGrid": 5 },
-    { "kind": "wordsearch", "match": "\\b(word\\s*search|wordsearch)\\b", "formId": "online-entry", "minGrid": 6 },
-    { "kind": "krisskross", "match": "\\b(kriss?\\s*kross|criss\\s*cross)\\b", "formId": "online-entry", "minGrid": 5 },
-    { "kind": "wordwheel", "match": "\\b(word\\s*wheel|target|nine\\s*letter)\\b", "formId": "online-entry" },
-    { "kind": "sudoku", "match": "\\bsudoku\\b", "formId": "online-entry", "minGrid": 9 },
-    { "kind": "trivia", "match": "\\b(trivia|quiz|general\\s+knowledge)\\b", "formId": "online-entry" }
+    { "kind": "crossword", "match": "\\b(quick\\s+)?crossword\\b", "formId": "take5-online-coupon", "answerFrom": "keyword", "minGrid": 5 },
+    { "kind": "crossword", "match": "\\bcryptic\\b", "formId": "take5-online-coupon", "cryptic": true, "minGrid": 5 },
+    { "kind": "codeword", "match": "\\b(code\\s*cracker|codeword|code\\s*word)\\b", "formId": "take5-online-coupon", "minGrid": 5 },
+    { "kind": "wordsearch", "match": "\\b(word\\s*search|wordsearch)\\b", "formId": "take5-online-coupon", "minGrid": 6 },
+    { "kind": "krisskross", "match": "\\b(kriss?\\s*kross|criss\\s*cross)\\b", "formId": "take5-online-coupon", "minGrid": 5 },
+    { "kind": "wordwheel", "match": "\\b(word\\s*wheel|target|nine\\s*letter)\\b", "formId": "take5-online-coupon" },
+    { "kind": "sudoku", "match": "\\bsudoku\\b", "formId": "take5-online-coupon", "minGrid": 9 },
+    { "kind": "trivia", "match": "\\b(trivia|quiz|general\\s+knowledge)\\b", "formId": "take5-online-coupon" }
   ],
   "closesPattern": "(?:closes?|entries close)[^0-9]{0,20}(\\d{1,2}\\s+\\w+\\s+\\d{4})",
   "prizePattern": "(\\$[\\d,]+(?:\\.\\d{2})?)"
