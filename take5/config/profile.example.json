@@ -1,0 +1,18 @@
+{
+  "firstName": "Jane",
+  "lastName": "Citizen",
+  "email": "jane@example.com",
+  "phone": "0400 000 000",
+  "dateOfBirth": "1975-04-19",
+  "gender": "Female",
+  "address": {
+    "line1": "12 Example Street",
+    "line2": "",
+    "suburb": "Newtown",
+    "state": "NSW",
+    "postcode": "2042",
+    "country": "Australia"
+  },
+  "tiebreaker": "I read Take 5 every week and the puzzles are the first thing I turn to.",
+  "subscriberNumber": ""
+}

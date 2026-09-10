@@ -1,0 +1,13 @@
+{
+  "dryRun": true,
+  "minConfidence": 0.9,
+  "delayBetweenEntriesMs": 20000,
+  "maxEntriesPerRun": 40,
+  "headless": true,
+  "cron": "0 8 * * 2",
+  "timezone": "Australia/Sydney",
+  "watchDir": "data/inbox",
+  "dataDir": "data",
+  "geminiModel": "gemini-3-flash-preview",
+  "extraWords": ["ESKY", "UTE", "BOGAN", "DOONA", "THONGS"]
+}

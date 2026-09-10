@@ -3,7 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Book, UserSettings } from './types';
 import Library from './components/Library';
 import Reader from './components/Reader';
-import { BookOpen, Library as LibraryIcon, Sparkles } from 'lucide-react';
+import Take5Dashboard from './components/take5/Take5Dashboard';
+import { BookOpen, Library as LibraryIcon, Sparkles, Trophy } from 'lucide-react';
 
 const STORAGE_KEY = 'quest_rsvp_books';
 const POSITION_KEY = 'quest_rsvp_last_book';
@@ -18,7 +19,7 @@ const DEFAULT_SETTINGS: UserSettings = {
 
 const App: React.FC = () => {
   const [books, setBooks] = useState<Book[]>([]);
-  const [view, setView] = useState<'library' | 'reader'>('library');
+  const [view, setView] = useState<'library' | 'reader' | 'take5'>('library');
   const [activeBook, setActiveBook] = useState<Book | null>(null);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
 
@@ -125,6 +126,17 @@ const App: React.FC = () => {
             <LibraryIcon size={18} />
             Library
           </button>
+          <button
+            onClick={() => setView('take5')}
+            className={`flex items-center gap-2 px-6 py-2 rounded-full transition-all ${
+              view === 'take5'
+                ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(217,119,6,0.4)]'
+                : 'hover:bg-zinc-800/20'
+            }`}
+          >
+            <Trophy size={18} />
+            Take 5
+          </button>
           {activeBook && (
             <button
               onClick={() => setView('reader')}
@@ -143,13 +155,15 @@ const App: React.FC = () => {
 
       <main className="flex-1 overflow-auto relative">
         {view === 'library' ? (
-          <Library 
-            books={books} 
-            onSelect={handleSelectBook} 
+          <Library
+            books={books}
+            onSelect={handleSelectBook}
             onDelete={handleDeleteBook}
             onAdd={handleAddBook}
             theme={settings.theme}
           />
+        ) : view === 'take5' ? (
+          <Take5Dashboard theme={settings.theme} />
         ) : (
           activeBook && (
             <Reader 
