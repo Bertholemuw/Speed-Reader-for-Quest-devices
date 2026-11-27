@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RSVP Speed Reader</string>
+    <string name="title_activity_main">RSVP Speed Reader</string>
+    <string name="package_name">com.rsvp.speedreader</string>
+    <string name="custom_url_scheme">com.rsvp.speedreader</string>
+</resources>

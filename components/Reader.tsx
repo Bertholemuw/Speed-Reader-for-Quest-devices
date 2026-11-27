@@ -6,7 +6,10 @@ import {
   Settings2, ChevronLeft, BrainCircuit, MessageSquareText,
   Type, Palette, FastForward, X, Maximize, Minimize
 } from 'lucide-react';
-import { summarizePassage, explainWord } from '../services/geminiService';
+import { KeepAwake } from '@capacitor-community/keep-awake';
+import { summarizePassage, explainWord, aiAvailable } from '../services/geminiService';
+import { useBackHandler } from '../services/backButton';
+import { isNative } from '../services/platform';
 
 interface ReaderProps {
   book: Book;
@@ -140,6 +143,25 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
     onUpdatePosition(book.id, index);
   }, [index, book.id, onUpdatePosition]);
 
+  // Keep the screen on while words are flashing
+  useEffect(() => {
+    if (!isNative) return;
+    (isPlaying ? KeepAwake.keepAwake() : KeepAwake.allowSleep()).catch(() => {});
+  }, [isPlaying]);
+  useEffect(() => () => { if (isNative) KeepAwake.allowSleep().catch(() => {}); }, []);
+
+  // Android back button closes the top-most layer first
+  const closeAi = () => { setShowSummary(false); setExplanation(null); };
+  useBackHandler(isZenMode, () => setIsZenMode(false));
+  useBackHandler(isSettingsOpen, () => setIsSettingsOpen(false));
+  useBackHandler(showSummary || explanation !== null, closeAi);
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    setIndex(Math.round(ratio * (words.current.length - 1)));
+  };
+
   const currentSpritz = getSpritzWord(words.current[index]);
 
   // CSS Mapping
@@ -150,10 +172,10 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
   };
 
   const sizeClassMap: Record<FontSize, string> = {
-    small: 'text-4xl md:text-5xl',
-    medium: 'text-6xl md:text-7xl',
-    large: 'text-7xl md:text-8xl',
-    'extra-large': 'text-8xl md:text-9xl'
+    small: 'text-3xl md:text-5xl',
+    medium: 'text-4xl md:text-7xl',
+    large: 'text-5xl md:text-8xl',
+    'extra-large': 'text-6xl md:text-9xl'
   };
 
   const themeColors = {
@@ -166,7 +188,7 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
   const uiVisible = !isZenMode || showControlsInZen;
 
   return (
-    <div className={`h-full flex flex-col items-center justify-center p-6 relative transition-all duration-300 ${themeColors.bg} ${isZenMode ? 'cursor-none' : ''}`}>
+    <div className={`min-h-full flex flex-col items-center justify-center p-4 md:p-6 relative transition-all duration-300 ${themeColors.bg} ${isZenMode ? 'cursor-none' : ''}`}>
       
       {/* Stable Reader Unit */}
       <div className="w-full max-w-5xl flex flex-col items-center">
@@ -175,7 +197,7 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
         <div className={`transition-opacity duration-500 ${uiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
           <button 
             onClick={onClose}
-            className={`mb-10 flex items-center gap-2 hover:opacity-80 px-8 py-3 rounded-full border transition-all ${themeColors.text} ${themeColors.border} ${themeColors.card} shadow-lg`}
+            className={`mb-4 md:mb-10 flex items-center gap-2 hover:opacity-80 px-5 md:px-8 py-2 md:py-3 rounded-full border transition-all ${themeColors.text} ${themeColors.border} ${themeColors.card} shadow-lg`}
           >
             <ChevronLeft size={20} />
             Library
@@ -183,10 +205,13 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
         </div>
 
         {/* The Main Reading HUD */}
-        <div className={`w-full rounded-[2rem] border p-16 relative overflow-hidden transition-all duration-500 ${isZenMode ? 'border-transparent bg-transparent shadow-none p-0' : `${themeColors.card} ${themeColors.border} shadow-2xl`}`}>
+        <div className={`w-full rounded-3xl md:rounded-[2rem] border p-5 md:p-16 relative overflow-hidden transition-all duration-500 ${isZenMode ? 'border-transparent bg-transparent shadow-none p-0' : `${themeColors.card} ${themeColors.border} shadow-2xl`}`}>
           
           {/* Word Display Engine */}
-          <div className={`h-64 flex items-center justify-center relative transition-transform duration-500 ${isZenMode ? 'scale-110 translate-y-8' : ''}`}>
+          <div
+            onClick={handleTogglePlay}
+            className={`h-40 md:h-64 flex items-center justify-center relative overflow-hidden select-none cursor-pointer transition-transform duration-500 ${isZenMode ? 'scale-110 translate-y-8' : ''}`}
+          >
             <div className={`${fontClassMap[settings.fontFamily]} ${sizeClassMap[settings.fontSize]} flex items-center justify-start w-full relative pl-[35%] font-black tracking-tight`}>
               <span className={`${themeColors.muted} absolute right-[65%] text-right whitespace-nowrap`}>
                 {currentSpritz.prefix}
@@ -201,59 +226,64 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
           </div>
 
           {/* Progress Indicator */}
-          <div className={`mt-12 space-y-4 px-6 transition-opacity duration-500 ${uiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+          <div className={`mt-6 md:mt-12 space-y-3 md:space-y-4 md:px-6 transition-opacity duration-500 ${uiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <div onClick={handleSeek} className="w-full py-2 -my-2 cursor-pointer" title="Tap to jump">
             <div className="w-full bg-zinc-500/10 h-2 rounded-full overflow-hidden border border-zinc-500/5">
               <div 
                 className="bg-cyan-600 h-full transition-all duration-300" 
-                style={{ width: `${(index / (words.current.length - 1)) * 100}%` }}
+                style={{ width: `${(index / Math.max(1, words.current.length - 1)) * 100}%` }}
               />
             </div>
-            <div className={`flex justify-between text-[11px] uppercase tracking-[0.2em] jetbrains-mono font-bold ${themeColors.muted}`}>
-              <span>WORD: {index + 1} / {words.current.length}</span>
-              <span>PROGRESS: {Math.round((index / words.current.length) * 100)}%</span>
+            </div>
+            <div className={`flex justify-between gap-2 text-[10px] md:text-[11px] uppercase tracking-wider md:tracking-[0.2em] jetbrains-mono font-bold ${themeColors.muted}`}>
+              <span>WORD {index + 1} / {words.current.length}</span>
+              <span>{Math.round((index / words.current.length) * 100)}%</span>
             </div>
           </div>
         </div>
 
         {/* Control Panel */}
-        <div className={`mt-10 flex flex-col items-center gap-8 w-full max-w-3xl p-10 rounded-[2rem] border transition-all duration-500 ${uiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'} ${themeColors.card} ${themeColors.border} shadow-xl`}>
-          <div className="flex items-center gap-16">
-            <button onClick={() => handleSkip(-10)} className={`${themeColors.muted} hover:text-cyan-500 transition-all hover:scale-110 active:scale-95`}><SkipBack size={32} /></button>
+        <div className={`mt-4 md:mt-10 flex flex-col items-center gap-5 md:gap-8 w-full max-w-3xl p-5 md:p-10 rounded-3xl md:rounded-[2rem] border transition-all duration-500 ${uiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'} ${themeColors.card} ${themeColors.border} shadow-xl`}>
+          <div className="flex items-center gap-8 md:gap-16">
+            <button onClick={() => handleSkip(-10)} aria-label="Back 10 words" className={`${themeColors.muted} hover:text-cyan-500 transition-all hover:scale-110 active:scale-95`}><SkipBack className="w-7 h-7 md:w-8 md:h-8" /></button>
             <button 
               onClick={handleTogglePlay}
-              className="w-24 h-24 rounded-full bg-cyan-600 flex items-center justify-center text-white hover:bg-cyan-500 hover:scale-105 active:scale-90 transition-all shadow-lg"
+              aria-label={isPlaying ? "Pause" : "Play"}
+              className="w-16 h-16 md:w-24 md:h-24 shrink-0 rounded-full bg-cyan-600 flex items-center justify-center text-white hover:bg-cyan-500 hover:scale-105 active:scale-90 transition-all shadow-lg"
             >
-              {isPlaying ? <Pause size={40} fill="currentColor" /> : <Play size={40} fill="currentColor" className="ml-2" />}
+              {isPlaying ? <Pause className="w-8 h-8 md:w-10 md:h-10" fill="currentColor" /> : <Play className="w-8 h-8 md:w-10 md:h-10 ml-1 md:ml-2" fill="currentColor" />}
             </button>
-            <button onClick={() => handleSkip(10)} className={`${themeColors.muted} hover:text-cyan-500 transition-all hover:scale-110 active:scale-95`}><SkipForward size={32} /></button>
-            <button onClick={handleReset} className={`${themeColors.muted} hover:text-red-500 transition-all hover:scale-110 active:scale-95`}><RotateCcw size={32} /></button>
+            <button onClick={() => handleSkip(10)} aria-label="Forward 10 words" className={`${themeColors.muted} hover:text-cyan-500 transition-all hover:scale-110 active:scale-95`}><SkipForward className="w-7 h-7 md:w-8 md:h-8" /></button>
+            <button onClick={handleReset} aria-label="Restart" className={`${themeColors.muted} hover:text-red-500 transition-all hover:scale-110 active:scale-95`}><RotateCcw className="w-7 h-7 md:w-8 md:h-8" /></button>
           </div>
 
-          <div className={`flex items-center gap-6 w-full px-8 border-t ${themeColors.border} pt-8 justify-between`}>
-            <div className="flex gap-4">
-              <button onClick={handleSummarize} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border ${themeColors.border} hover:bg-zinc-500/5 transition-all text-sm font-bold uppercase tracking-wider ${themeColors.text}`}>
+          <div className={`flex flex-wrap items-center gap-3 md:gap-6 w-full md:px-8 border-t ${themeColors.border} pt-5 md:pt-8 justify-center md:justify-between`}>
+            {aiAvailable && <div className="flex gap-3 md:gap-4">
+              <button onClick={handleSummarize} className={`flex items-center gap-2 px-4 md:px-5 py-2.5 rounded-xl border ${themeColors.border} hover:bg-zinc-500/5 transition-all text-sm font-bold uppercase tracking-wider ${themeColors.text}`}>
                 <BrainCircuit size={18} /> Summarize
               </button>
-              <button onClick={handleExplain} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border ${themeColors.border} hover:bg-zinc-500/5 transition-all text-sm font-bold uppercase tracking-wider ${themeColors.text}`}>
+              <button onClick={handleExplain} className={`flex items-center gap-2 px-4 md:px-5 py-2.5 rounded-xl border ${themeColors.border} hover:bg-zinc-500/5 transition-all text-sm font-bold uppercase tracking-wider ${themeColors.text}`}>
                 <MessageSquareText size={18} /> Explain
               </button>
-            </div>
+            </div>}
             
             <div className="flex gap-3">
               <button 
                 onClick={toggleZenMode}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl border ${themeColors.border} hover:bg-zinc-500/5 transition-all text-sm font-bold uppercase tracking-wider ${themeColors.text}`}
+                className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl border ${themeColors.border} hover:bg-zinc-500/5 transition-all text-sm font-bold uppercase tracking-wider ${themeColors.text}`}
                 title={isZenMode ? "Exit Zen Mode" : "Enter Zen Mode"}
+                aria-label={isZenMode ? "Exit Zen Mode" : "Enter Zen Mode"}
               >
                 {isZenMode ? <Minimize size={18} /> : <Maximize size={18} />}
-                {isZenMode ? "Windowed" : "Zen Mode"}
+                <span className="hidden sm:inline">{isZenMode ? "Windowed" : "Zen Mode"}</span>
               </button>
 
               <button 
                 onClick={() => setIsSettingsOpen(true)}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-cyan-600 text-white hover:bg-cyan-500 transition-all text-sm font-bold uppercase tracking-wider shadow-md"
+                aria-label="Settings"
+                className="flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl bg-cyan-600 text-white hover:bg-cyan-500 transition-all text-sm font-bold uppercase tracking-wider shadow-md"
               >
-                <Settings2 size={18} /> Settings
+                <Settings2 size={18} /> <span className="hidden sm:inline">Settings</span>
               </button>
             </div>
           </div>
@@ -262,10 +292,10 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
 
       {/* Settings Modal */}
       {isSettingsOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-6" onClick={() => setIsSettingsOpen(false)}>
-          <div className={`w-full max-w-xl rounded-[2rem] border p-10 space-y-8 shadow-2xl relative transition-all duration-300 ${themeColors.card} ${themeColors.border}`} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-end sm:items-center justify-center p-3 sm:p-6" onClick={() => setIsSettingsOpen(false)}>
+          <div className={`w-full max-w-xl max-h-[90vh] overflow-auto rounded-3xl md:rounded-[2rem] border p-6 md:p-10 space-y-6 md:space-y-8 shadow-2xl relative transition-all duration-300 ${themeColors.card} ${themeColors.border}`} onClick={e => e.stopPropagation()}>
             <div className={`flex items-center justify-between border-b ${themeColors.border} pb-6`}>
-              <h3 className={`text-2xl font-bold flex items-center gap-3 ${themeColors.text}`}><Settings2 /> Reading Settings</h3>
+              <h3 className={`text-xl md:text-2xl font-bold flex items-center gap-3 ${themeColors.text}`}><Settings2 /> Reading Settings</h3>
               <button onClick={() => setIsSettingsOpen(false)} className={`${themeColors.muted} hover:text-white`}><X size={32} /></button>
             </div>
 
@@ -302,6 +332,24 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
                 </div>
               </div>
 
+              {/* Font Size */}
+              <div className="space-y-4">
+                <span className={`flex items-center gap-2 font-bold text-sm ${themeColors.muted}`}><Type size={14} /> SIZE</span>
+                <div className="grid grid-cols-4 gap-3">
+                  {(['small', 'medium', 'large', 'extra-large'] as FontSize[]).map(sz => (
+                    <button
+                      key={sz}
+                      onClick={() => onUpdateSettings({ fontSize: sz })}
+                      className={`py-3 rounded-xl border-2 transition-all text-xs font-bold uppercase ${
+                        settings.fontSize === sz ? 'border-cyan-500 bg-cyan-500/10 text-cyan-500' : `${themeColors.border} ${themeColors.text} hover:bg-zinc-500/5`
+                      }`}
+                    >
+                      {sz === 'extra-large' ? 'XL' : sz === 'medium' ? 'MED' : sz}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Themes */}
               <div className="space-y-4">
                 <span className={`font-bold text-sm ${themeColors.muted}`}>THEME</span>
@@ -327,13 +375,13 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
 
       {/* AI Modals */}
       {(showSummary || explanation) && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[150] flex items-center justify-center p-12" onClick={() => { setShowSummary(false); setExplanation(null); }}>
-          <div className={`${themeColors.card} border ${themeColors.border} p-10 rounded-[2.5rem] max-w-3xl w-full shadow-2xl space-y-6`} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[150] flex items-center justify-center p-4 md:p-12" onClick={() => { setShowSummary(false); setExplanation(null); }}>
+          <div className={`${themeColors.card} border ${themeColors.border} p-6 md:p-10 rounded-3xl md:rounded-[2.5rem] max-w-3xl w-full shadow-2xl space-y-6`} onClick={e => e.stopPropagation()}>
             <div className={`flex items-center gap-3 font-bold text-xl border-b ${themeColors.border} pb-6 text-cyan-500 uppercase`}>
               {explanation ? <MessageSquareText /> : <BrainCircuit />}
               {explanation ? "Definition" : "Summary"}
             </div>
-            <div className={`${themeColors.text} leading-relaxed text-xl max-h-[50vh] overflow-auto pr-6 scrollbar-thin`}>
+            <div className={`${themeColors.text} leading-relaxed text-base md:text-xl max-h-[50vh] overflow-auto pr-2 md:pr-6 scrollbar-thin`}>
               {explanation || (isSummarizing ? "Processing..." : summary)}
             </div>
             <button 

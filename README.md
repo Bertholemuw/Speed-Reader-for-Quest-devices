@@ -1,20 +1,43 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# RSVP Speed Reader (Meta Quest + Android)
 
-# Run and deploy your AI Studio app
+A Spritz-style RSVP speed reader: words flash one at a time with the optimal recognition point highlighted.
+Import EPUB/TXT files, paste text, or pull classics from Project Gutenberg. Optional Gemini-powered
+summaries and word definitions.
 
-This contains everything you need to run your app locally.
+The same React codebase runs as a web app (Meta Quest browser, desktop) and as a native Android app via
+[Capacitor](https://capacitorjs.com/).
 
-View your app in AI Studio: https://ai.studio/apps/drive/1Obj1Zx6YGz1phTD_MjDuXExwolbFDnK2
+## Run on the web / Quest
 
-## Run Locally
+**Prerequisites:** Node.js 22+
 
-**Prerequisites:**  Node.js
+1. `npm install`
+2. Optional: set `GEMINI_API_KEY` in `.env.local` to enable Summarize/Explain
+3. `npm run dev`
 
+## Android app
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+**Prerequisites:** Node.js 22+, JDK 21, Android SDK (Android Studio installs both).
+
+```bash
+npm install
+npm run android:build     # builds the web bundle and syncs it into android/
+npm run android:open      # opens the project in Android Studio (Run ▶ to install on a device)
+# or, without Android Studio:
+cd android && ./gradlew assembleDebug   # -> android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Every push also builds a debug APK in GitHub Actions (**Actions → Android APK → Artifacts**). Add a
+`GEMINI_API_KEY` repository secret if you want the AI buttons in CI builds.
+
+### Android-specific behaviour
+
+- Fully offline UI: Tailwind and fonts are bundled, no CDN needed.
+- Gutenberg downloads use native HTTP, so no CORS proxy is involved.
+- Library stored in IndexedDB (no 5 MB localStorage cap); older saved books migrate automatically.
+- Hardware back button closes dialogs, then returns to the library, then exits.
+- Screen stays awake while words are playing; status bar follows the reading theme.
+- Tap the word to play/pause; tap the progress bar to jump.
+
+> **Note on the Gemini key:** it is compiled into the app bundle, so anyone with the APK can extract it.
+> Use a restricted key, or leave it unset (the AI buttons are hidden) for builds you share.
