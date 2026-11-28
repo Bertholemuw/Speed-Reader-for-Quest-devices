@@ -10,6 +10,7 @@ import { KeepAwake } from '@capacitor-community/keep-awake';
 import { summarizePassage, explainWord, aiAvailable } from '../services/geminiService';
 import { useBackHandler } from '../services/backButton';
 import { isNative } from '../services/platform';
+import { tokenize } from '../services/tokenize';
 
 interface ReaderProps {
   book: Book;
@@ -32,7 +33,7 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
 
   const timeoutRef = useRef<number | null>(null);
   const controlsTimeoutRef = useRef<number | null>(null);
-  const words = useRef<string[]>(book.content.split(/\s+/).filter(w => w.length > 0));
+  const words = useRef<string[]>(tokenize(book.content));
 
   // Spritz Logic: Optimal Recognition Point calculation
   const getSpritzWord = (word: string): SpritzWord => {

@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Book, BookMeta, ThemeType } from '../types';
 import BookDetails from './BookDetails';
+import { tokenize } from '../services/tokenize';
 import { Plus, Trash2, FileText, Upload, BookOpen, Clock, X, Globe, Loader2, Info, Play } from 'lucide-react';
 import GutenbergExplorer from './GutenbergExplorer';
 import { extractTextFromEpub } from '../services/epubService';
@@ -24,6 +25,14 @@ const Library: React.FC<LibraryProps> = ({ books, onSelect, onDelete, onAdd, the
   const [detailsBook, setDetailsBook] = useState<Book | null>(null);
 
   useBackHandler(isAdding, () => setIsAdding(false));
+
+  // Tokenizing a whole novel is costly, so only recount when the books themselves change.
+  const contentKey = books.map(b => b.id).join(',');
+  const wordCounts = useMemo(
+    () => new Map(books.map(b => [b.id, tokenize(b.content).length])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contentKey]
+  );
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -95,7 +104,7 @@ const Library: React.FC<LibraryProps> = ({ books, onSelect, onDelete, onAdd, the
           <span className={`${themeColors.muted} font-bold text-lg group-hover:text-cyan-400`}>Import Book</span>
         </div>
 
-        {books.map((book) => (
+        {books.map((book) => { const wordCount = wordCounts.get(book.id) ?? 0; return (
           <div 
             key={book.id}
             className={`group relative md:h-72 border rounded-3xl md:rounded-[2rem] p-5 md:p-10 hover:border-cyan-500/50 hover:shadow-2xl transition-all cursor-pointer flex flex-col ${themeColors.card} ${themeColors.border}`}
@@ -108,13 +117,13 @@ const Library: React.FC<LibraryProps> = ({ books, onSelect, onDelete, onAdd, the
               <h3 className={`text-xl md:text-2xl font-bold line-clamp-2 leading-tight ${themeColors.text}`}>{book.title}</h3>
               {book.author && <p className={`${themeColors.muted} italic -mt-2`}>{book.author}</p>}
               <div className={`flex items-center gap-4 text-sm font-medium ${themeColors.muted}`}>
-                <span className="flex items-center gap-1.5"><BookOpen size={16} /> {book.content.split(/\s+/).length.toLocaleString()} words</span>
+                <span className="flex items-center gap-1.5"><BookOpen size={16} /> {wordCount.toLocaleString()} words</span>
                 <span className="flex items-center gap-1.5"><Clock size={16} /> {new Date(book.addedAt).toLocaleDateString()}</span>
               </div>
             </div>
             <div className="flex items-center justify-between mt-4 md:mt-6">
                <div className="text-xs font-bold px-4 py-2 bg-cyan-600/10 rounded-full text-cyan-500 tracking-wider">
-                {Math.round((book.lastPosition / (book.content.split(/\s+/).length || 1)) * 100)}% COMPLETE
+                {Math.round((book.lastPosition / (wordCount || 1)) * 100)}% COMPLETE
                </div>
                <div className="flex items-center gap-1">
                <button
@@ -134,7 +143,7 @@ const Library: React.FC<LibraryProps> = ({ books, onSelect, onDelete, onAdd, the
                </div>
             </div>
           </div>
-        ))}
+        ); })}
       </div>
 
       {isAdding && (

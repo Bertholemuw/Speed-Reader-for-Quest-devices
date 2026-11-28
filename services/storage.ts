@@ -1,4 +1,5 @@
 import { Book } from '../types';
+import { TOKENIZER_VERSION, migratePosition } from './tokenize';
 
 // Books live in IndexedDB: localStorage caps out around 5-10 MB, which a few novels exceed.
 const DB_NAME = 'rsvp_reader';
@@ -38,7 +39,12 @@ export const loadBooks = async (): Promise<Book[]> => {
       console.error('Legacy book migration failed', e);
     }
   }
-  return books.sort((a, b) => b.addedAt - a.addedAt);
+  // Positions saved before hyphenated words were split need re-indexing.
+  const migrated = books.map(b => b.tokenizer === TOKENIZER_VERSION ? b
+    : { ...b, lastPosition: migratePosition(b.content, b.lastPosition), tokenizer: TOKENIZER_VERSION });
+  const changed = migrated.filter((b, i) => b !== books[i]);
+  if (changed.length) await tx('readwrite', s => { changed.forEach(b => s.put(b)); });
+  return migrated.sort((a, b) => b.addedAt - a.addedAt);
 };
 
 export const saveBook = (book: Book) => tx('readwrite', s => { s.put(book); });

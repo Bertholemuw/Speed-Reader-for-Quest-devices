@@ -6,6 +6,7 @@ import Library from './components/Library';
 import Reader from './components/Reader';
 import { BookOpen, Library as LibraryIcon, Sparkles } from 'lucide-react';
 import { loadBooks, saveBook, deleteBook } from './services/storage';
+import { TOKENIZER_VERSION } from './services/tokenize';
 import { installBackButton, useBackHandler, exitApp } from './services/backButton';
 import { isNative } from './services/platform';
 
@@ -81,6 +82,7 @@ const App: React.FC = () => {
       title,
       content,
       lastPosition: 0,
+      tokenizer: TOKENIZER_VERSION,
       addedAt: Date.now(),
     };
     setBooks(prev => [newBook, ...prev]);

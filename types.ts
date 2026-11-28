@@ -8,6 +8,8 @@ export interface Book {
   author?: string;
   synopsis?: string;
   subjects?: string[];
+  /** Version of the word-splitting rules lastPosition was saved with. */
+  tokenizer?: number;
 }
 
 export type BookMeta = Pick<Book, 'author' | 'synopsis' | 'subjects'>;
