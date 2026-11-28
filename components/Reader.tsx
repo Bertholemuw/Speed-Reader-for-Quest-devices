@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Book, SpritzWord, UserSettings, ThemeType, FontType, FontSize, ReadingMode } from '../types';
 import ScrollText from './ScrollText';
 import { 
@@ -32,12 +32,17 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
   const [isZenMode, setIsZenMode] = useState(false);
   const [showControlsInZen, setShowControlsInZen] = useState(false);
 
-  const timeoutRef = useRef<number | null>(null);
   const controlsTimeoutRef = useRef<number | null>(null);
   const words = useRef<string[]>(tokenize(book.content));
   // Keeps the pause layer up until the tap that paused finishes, so it can't fall through to a button.
   const [pauseGuard, setPauseGuard] = useState(false);
   const mode: ReadingMode = settings.readingMode ?? 'rsvp';
+  // While flashing, words are painted straight into these spans on screen refreshes (not via React).
+  const flashing = isPlaying && mode === 'rsvp';
+  const prefixRef = useRef<HTMLSpanElement>(null);
+  const orpRef = useRef<HTMLSpanElement>(null);
+  const suffixRef = useRef<HTMLSpanElement>(null);
+  const indexRef = useRef(index);
 
   // Spritz Logic: Optimal Recognition Point calculation
   const getSpritzWord = (word: string): SpritzWord => {
@@ -141,33 +146,65 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
     setExplanation(result || "Could not define word.");
   };
 
-  // Playback loop for word-flash mode (scroll mode drives its own smooth loop)
-  useEffect(() => {
-    if (isPlaying && mode === 'rsvp') {
-      const scheduleNext = () => {
-        const delay = 60000 / settings.wpm;
+  useLayoutEffect(() => { if (!flashing) indexRef.current = index; }, [index, flashing]);
 
-        timeoutRef.current = window.setTimeout(() => {
-          setIndex(prev => {
-            if (prev >= words.current.length - 1) {
-              setIsPlaying(false);
-              return prev;
-            }
-            return prev + 1;
-          });
-          scheduleNext();
-        }, delay);
-      };
+  // Word-flash playback, synced to screen refreshes. Each word gets whole frames, and with
+  // "clear between words" on, its last frame is blank so the screen fully clears before the
+  // next word (prevents ghosting at high WPM, especially on OLED screens).
+  useLayoutEffect(() => {
+    if (!flashing) return;
+    const total = words.current.length;
+    const duration = 60000 / settings.wpm;
+    const gapOn = settings.wordGap ?? true;
+    let cur = indexRef.current;
+    let wordStart = performance.now();
+    let lastFrame = wordStart;
+    let frameMs = 1000 / 60;
+    let lastReport = 0;
+    let blank = false;
+    let raf = 0;
 
-      scheduleNext();
-    } else {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    }
-
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    const paint = (i: number) => {
+      const w = getSpritzWord(words.current[i]);
+      if (prefixRef.current) prefixRef.current.textContent = w.prefix;
+      if (orpRef.current) orpRef.current.textContent = w.orp;
+      if (suffixRef.current) suffixRef.current.textContent = w.suffix;
+      blank = false;
     };
-  }, [isPlaying, settings.wpm, mode]);
+    const clear = () => {
+      if (prefixRef.current) prefixRef.current.textContent = '';
+      if (orpRef.current) orpRef.current.textContent = '';
+      if (suffixRef.current) suffixRef.current.textContent = '';
+      blank = true;
+    };
+
+    paint(cur);
+    const tick = (now: number) => {
+      const delta = now - lastFrame;
+      lastFrame = now;
+      if (delta > 4 && delta < 50) frameMs += (delta - frameMs) * 0.1;
+      // Fall behind (e.g. app was backgrounded)? Resync rather than racing through words.
+      if (now - wordStart > duration * 3) wordStart = now - duration;
+
+      const elapsed = now - wordStart;
+      if (elapsed + frameMs / 2 >= duration) {
+        if (cur >= total - 1) { setIsPlaying(false); return; }
+        cur += 1;
+        indexRef.current = cur;
+        wordStart += duration;
+        paint(cur);
+      } else if (gapOn && !blank && duration >= frameMs * 2.5 && elapsed + frameMs * 1.5 >= duration) {
+        clear(); // this word's final frame is blank
+      }
+      if (now - lastReport > 200) { lastReport = now; setIndex(cur); }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      setIndex(indexRef.current); // applied before the next paint, so the paused word is exact
+    };
+  }, [flashing, settings.wpm, settings.wordGap]);
 
   useEffect(() => {
     onUpdatePosition(book.id, index);
@@ -263,14 +300,14 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
             className={`h-40 md:h-64 flex items-center justify-center relative overflow-hidden select-none cursor-pointer transition-transform duration-500 ${isZenMode ? 'scale-110 translate-y-8' : ''}`}
           >
             <div className={`${fontClassMap[settings.fontFamily]} ${sizeClassMap[settings.fontSize]} flex items-center justify-start w-full relative pl-[35%] font-black tracking-tight`}>
-              <span className={`${themeColors.muted} absolute right-[65%] text-right whitespace-nowrap`}>
-                {currentSpritz.prefix}
+              <span ref={prefixRef} className={`${themeColors.muted} absolute right-[65%] text-right whitespace-nowrap`}>
+                {flashing ? null : currentSpritz.prefix}
               </span>
-              <span className={themeColors.accent}>
-                {currentSpritz.orp}
+              <span ref={orpRef} className={themeColors.accent}>
+                {flashing ? null : currentSpritz.orp}
               </span>
-              <span className={themeColors.text}>
-                {currentSpritz.suffix}
+              <span ref={suffixRef} className={themeColors.text}>
+                {flashing ? null : currentSpritz.suffix}
               </span>
             </div>
           </div>
@@ -428,6 +465,22 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
                   ))}
                 </div>
               </div>
+
+              {/* Word gap */}
+              <button
+                onClick={() => onUpdateSettings({ wordGap: !(settings.wordGap ?? true) })}
+                role="switch"
+                aria-checked={settings.wordGap ?? true}
+                className={`w-full flex items-center justify-between gap-4 p-4 rounded-xl border-2 ${themeColors.border} text-left`}
+              >
+                <span>
+                  <span className={`block font-bold text-sm ${themeColors.text}`}>Clear between words</span>
+                  <span className={`block text-xs ${themeColors.muted}`}>A blank frame between words keeps them crisp at high speed</span>
+                </span>
+                <span className={`shrink-0 w-12 h-7 rounded-full p-1 transition-colors ${settings.wordGap ?? true ? 'bg-cyan-600' : 'bg-zinc-500/40'}`}>
+                  <span className={`block w-5 h-5 rounded-full bg-white transition-transform ${settings.wordGap ?? true ? 'translate-x-5' : ''}`} />
+                </span>
+              </button>
 
               {/* Font Size */}
               <div className="space-y-4">

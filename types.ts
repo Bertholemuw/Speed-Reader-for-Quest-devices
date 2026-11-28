@@ -24,6 +24,8 @@ export interface UserSettings {
   wpm: number;
   /** 'rsvp' flashes one word at a time; 'scroll' auto-scrolls the page */
   readingMode: ReadingMode;
+  /** Word-flash mode: blank frame between words to stop ghosting at high WPM */
+  wordGap?: boolean;
   fontSize: FontSize;
   fontFamily: FontType;
   theme: ThemeType;
