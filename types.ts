@@ -5,7 +5,12 @@ export interface Book {
   content: string;
   lastPosition: number;
   addedAt: number;
+  author?: string;
+  synopsis?: string;
+  subjects?: string[];
 }
+
+export type BookMeta = Pick<Book, 'author' | 'synopsis' | 'subjects'>;
 
 export type ThemeType = 'dark' | 'sepia' | 'light' | 'amoled';
 export type FontType = 'jetbrains' | 'inter' | 'serif';

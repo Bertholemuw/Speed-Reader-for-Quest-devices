@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StatusBar, Style } from '@capacitor/status-bar';
-import { Book, UserSettings } from './types';
+import { Book, BookMeta, UserSettings } from './types';
 import Library from './components/Library';
 import Reader from './components/Reader';
 import { BookOpen, Library as LibraryIcon, Sparkles } from 'lucide-react';
@@ -74,8 +74,9 @@ const App: React.FC = () => {
   useEffect(() => installBackButton(exitApp), []);
   useBackHandler(view === 'reader', () => setView('library'));
 
-  const handleAddBook = (title: string, content: string) => {
+  const handleAddBook = (title: string, content: string, meta: BookMeta = {}) => {
     const newBook: Book = {
+      ...meta,
       id: Math.random().toString(36).substr(2, 9),
       title,
       content,

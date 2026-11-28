@@ -1,6 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { Search, Download, ExternalLink, Loader2, X, BookOpen } from 'lucide-react';
+import { Search, Download, Loader2, X, BookOpen } from 'lucide-react';
+import BookDetails from './BookDetails';
+import { formatAuthor, cleanSynopsis, cleanSubjects } from '../services/bookMeta';
+import { BookMeta } from '../types';
 import { extractTextFromEpub } from '../services/epubService';
 import { fetchCrossOrigin, isNative } from '../services/platform';
 import { useBackHandler } from '../services/backButton';
@@ -11,11 +14,20 @@ interface GutenbergBook {
   authors: { name: string }[];
   formats: Record<string, string>;
   download_count: number;
+  summaries?: string[];
+  subjects?: string[];
+  bookshelves?: string[];
 }
+
+const metaFor = (book: GutenbergBook): BookMeta => ({
+  author: book.authors.map(a => formatAuthor(a.name)).join(', ') || undefined,
+  synopsis: cleanSynopsis(book.summaries) || undefined,
+  subjects: cleanSubjects(book.subjects, book.bookshelves),
+});
 
 interface GutenbergExplorerProps {
   onClose: () => void;
-  onAddBook: (title: string, content: string) => void;
+  onAddBook: (title: string, content: string, meta?: BookMeta) => void;
   theme: 'dark' | 'sepia' | 'light' | 'amoled';
 }
 
@@ -24,6 +36,7 @@ const GutenbergExplorer: React.FC<GutenbergExplorerProps> = ({ onClose, onAddBoo
   const [books, setBooks] = useState<GutenbergBook[]>([]);
   const [loading, setLoading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
+  const [selected, setSelected] = useState<GutenbergBook | null>(null);
 
   const fetchBooks = async (query = '') => {
     setLoading(true);
@@ -68,11 +81,11 @@ const GutenbergExplorer: React.FC<GutenbergExplorerProps> = ({ onClose, onAddBoo
           if (kind === 'epub') {
             const { title, content } = await extractTextFromEpub(await fetchCrossOrigin(url, 'blob'));
             if (!content) throw new Error('Empty EPUB');
-            onAddBook(title || book.title, content);
+            onAddBook(title || book.title, content, metaFor(book));
           } else {
             const content = await fetchCrossOrigin(url, 'text');
             if (!content.trim() || /^\s*<(!doctype|html)/i.test(content)) throw new Error('Not a text file');
-            onAddBook(book.title, content);
+            onAddBook(book.title, content, metaFor(book));
           }
           onClose();
           return;
@@ -145,10 +158,15 @@ const GutenbergExplorer: React.FC<GutenbergExplorerProps> = ({ onClose, onAddBoo
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6 pb-12">
               {books.map((book) => (
                 <div key={book.id} className="group p-4 md:p-6 rounded-2xl bg-white/5 border border-white/5 hover:border-cyan-500/50 hover:bg-white/10 transition-all flex flex-col gap-4">
-                  <div className="flex-1">
+                  <button onClick={() => setSelected(book)} className="flex-1 text-left" aria-label={`About ${book.title}`}>
                     <h3 className="font-bold text-lg line-clamp-2 leading-tight mb-2 group-hover:text-cyan-400 transition-colors">{book.title}</h3>
-                    <p className="text-zinc-500 text-sm italic">{book.authors.length > 0 ? book.authors.map(a => a.name).join(', ') : 'Unknown Author'}</p>
-                  </div>
+                    <p className="text-zinc-500 text-sm italic">{book.authors.length > 0 ? book.authors.map(a => formatAuthor(a.name)).join(', ') : 'Unknown Author'}</p>
+                    {cleanSynopsis(book.summaries) && (
+                      // Skip the opening '"Title" by Author is a novel...' sentence; the card already shows both.
+                      <p className="text-sm opacity-70 line-clamp-2 mt-2">{cleanSynopsis(book.summaries).replace(/^"[^"]+" by [^.]+?\.\s+/, '')}</p>
+                    )}
+                    <p className="text-xs font-bold text-cyan-500 mt-2">Tap for synopsis</p>
+                  </button>
                   <div className="flex items-center justify-between border-t border-white/5 pt-4">
                     <span className="text-[10px] text-zinc-600 font-mono tracking-tighter uppercase">{book.download_count.toLocaleString()} Popularity</span>
                     <button 
@@ -171,6 +189,25 @@ const GutenbergExplorer: React.FC<GutenbergExplorerProps> = ({ onClose, onAddBoo
           {isNative ? 'Via Gutendex API & Gutenberg.org' : 'Via Gutendex API & Gutenberg.org • Proxied for CORS compliance'}
         </div>
       </div>
+
+      {selected && (
+        <BookDetails
+          title={selected.title}
+          {...metaFor(selected)}
+          theme={theme}
+          onClose={() => setSelected(null)}
+          action={
+            <button
+              onClick={() => handleDownload(selected)}
+              disabled={downloadingId !== null}
+              className="w-full flex items-center justify-center gap-2 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-lg rounded-2xl disabled:opacity-50 transition-all"
+            >
+              {downloadingId === selected.id ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
+              {downloadingId === selected.id ? 'Downloading...' : 'Import to Library'}
+            </button>
+          }
+        />
+      )}
     </div>
   );
 };

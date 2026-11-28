@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
-import { Book, ThemeType } from '../types';
-import { Plus, Trash2, FileText, Upload, BookOpen, Clock, X, Globe, Loader2 } from 'lucide-react';
+import { Book, BookMeta, ThemeType } from '../types';
+import BookDetails from './BookDetails';
+import { Plus, Trash2, FileText, Upload, BookOpen, Clock, X, Globe, Loader2, Info, Play } from 'lucide-react';
 import GutenbergExplorer from './GutenbergExplorer';
 import { extractTextFromEpub } from '../services/epubService';
 import { useBackHandler } from '../services/backButton';
@@ -10,7 +11,7 @@ interface LibraryProps {
   books: Book[];
   onSelect: (book: Book) => void;
   onDelete: (id: string) => void;
-  onAdd: (title: string, content: string) => void;
+  onAdd: (title: string, content: string, meta?: BookMeta) => void;
   theme: ThemeType;
 }
 
@@ -20,6 +21,7 @@ const Library: React.FC<LibraryProps> = ({ books, onSelect, onDelete, onAdd, the
   const [isProcessing, setIsProcessing] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
+  const [detailsBook, setDetailsBook] = useState<Book | null>(null);
 
   useBackHandler(isAdding, () => setIsAdding(false));
 
@@ -104,6 +106,7 @@ const Library: React.FC<LibraryProps> = ({ books, onSelect, onDelete, onAdd, the
                 <FileText className="w-5 h-5 md:w-7 md:h-7" />
               </div>
               <h3 className={`text-xl md:text-2xl font-bold line-clamp-2 leading-tight ${themeColors.text}`}>{book.title}</h3>
+              {book.author && <p className={`${themeColors.muted} italic -mt-2`}>{book.author}</p>}
               <div className={`flex items-center gap-4 text-sm font-medium ${themeColors.muted}`}>
                 <span className="flex items-center gap-1.5"><BookOpen size={16} /> {book.content.split(/\s+/).length.toLocaleString()} words</span>
                 <span className="flex items-center gap-1.5"><Clock size={16} /> {new Date(book.addedAt).toLocaleDateString()}</span>
@@ -113,12 +116,22 @@ const Library: React.FC<LibraryProps> = ({ books, onSelect, onDelete, onAdd, the
                <div className="text-xs font-bold px-4 py-2 bg-cyan-600/10 rounded-full text-cyan-500 tracking-wider">
                 {Math.round((book.lastPosition / (book.content.split(/\s+/).length || 1)) * 100)}% COMPLETE
                </div>
+               <div className="flex items-center gap-1">
+               <button
+                onClick={(e) => { e.stopPropagation(); setDetailsBook(book); }}
+                aria-label={`About ${book.title}`}
+                className={`${themeColors.muted} hover:text-cyan-500 transition-colors p-2`}
+               >
+                <Info size={24} />
+               </button>
                <button 
+                aria-label={`Delete ${book.title}`}
                 onClick={(e) => { e.stopPropagation(); onDelete(book.id); }}
                 className={`${themeColors.muted} hover:text-red-500 transition-colors p-2`}
                >
                 <Trash2 size={24} />
                </button>
+               </div>
             </div>
           </div>
         ))}
@@ -175,6 +188,25 @@ const Library: React.FC<LibraryProps> = ({ books, onSelect, onDelete, onAdd, the
             </div>
           </div>
         </div>
+      )}
+
+      {detailsBook && (
+        <BookDetails
+          title={detailsBook.title}
+          author={detailsBook.author}
+          synopsis={detailsBook.synopsis}
+          subjects={detailsBook.subjects}
+          theme={theme}
+          onClose={() => setDetailsBook(null)}
+          action={
+            <button
+              onClick={() => { const b = detailsBook; setDetailsBook(null); onSelect(b); }}
+              className="w-full flex items-center justify-center gap-2 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-lg rounded-2xl transition-all"
+            >
+              <Play size={20} fill="currentColor" /> {detailsBook.lastPosition > 0 ? 'Continue Reading' : 'Start Reading'}
+            </button>
+          }
+        />
       )}
 
       {isExploring && (
