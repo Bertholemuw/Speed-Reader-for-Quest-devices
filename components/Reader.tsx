@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Book, SpritzWord, UserSettings, ThemeType, FontType, FontSize, ReadingMode } from '../types';
 import ScrollText from './ScrollText';
 import { 
@@ -11,7 +11,7 @@ import { KeepAwake } from '@capacitor-community/keep-awake';
 import { summarizePassage, explainWord, aiAvailable } from '../services/geminiService';
 import { useBackHandler } from '../services/backButton';
 import { isNative } from '../services/platform';
-import { tokenize, paragraphStarts } from '../services/tokenize';
+import { tokenize } from '../services/tokenize';
 
 interface ReaderProps {
   book: Book;
@@ -35,7 +35,6 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
   const timeoutRef = useRef<number | null>(null);
   const controlsTimeoutRef = useRef<number | null>(null);
   const words = useRef<string[]>(tokenize(book.content));
-  const paras = useMemo(() => paragraphStarts(book.content), [book.content]);
   // Keeps the pause layer up until the tap that paused finishes, so it can't fall through to a button.
   const [pauseGuard, setPauseGuard] = useState(false);
   const mode: ReadingMode = settings.readingMode ?? 'rsvp';
@@ -142,9 +141,9 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
     setExplanation(result || "Could not define word.");
   };
 
-  // Playback Loop: Simple interval based on WPM
+  // Playback loop for word-flash mode (scroll mode drives its own smooth loop)
   useEffect(() => {
-    if (isPlaying) {
+    if (isPlaying && mode === 'rsvp') {
       const scheduleNext = () => {
         const delay = 60000 / settings.wpm;
 
@@ -168,7 +167,7 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [isPlaying, settings.wpm]);
+  }, [isPlaying, settings.wpm, mode]);
 
   useEffect(() => {
     onUpdatePosition(book.id, index);
@@ -248,10 +247,12 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
           {/* Word Display Engine */}
           {mode === 'scroll' ? (
             <ScrollText
-              words={words.current}
-              paragraphStarts={paras}
+              content={book.content}
               index={index}
-              glideMs={isPlaying ? 60000 / settings.wpm : 0}
+              wpm={settings.wpm}
+              playing={isPlaying}
+              onIndexChange={setIndex}
+              onEnd={() => setIsPlaying(false)}
               className={`${fontClassMap[settings.fontFamily]} ${scrollSizeMap[settings.fontSize]}`}
               textClass={themeColors.text}
               onClick={handleTogglePlay}

@@ -18,13 +18,3 @@ export const migratePosition = (text: string, oldPos: number): number => {
   return tokenize(before).length;
 };
 
-/** Token indices where a new paragraph begins (same token numbering as `tokenize`). */
-export const paragraphStarts = (text: string): Set<number> => {
-  const starts = new Set<number>();
-  let count = 0;
-  for (const para of text.split(/\n\s*\n/)) {
-    const n = tokenize(para).length;
-    if (n > 0) { starts.add(count); count += n; }
-  }
-  return starts;
-};
