@@ -2,6 +2,8 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 export const isNative = Capacitor.isNativePlatform();
 
+const TIMEOUT_MS = 45000;
+
 const proxied = (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`;
 
 const base64ToBlob = (b64: string): Blob => {
@@ -22,11 +24,13 @@ export async function fetchCrossOrigin(url: string, as: 'text' | 'blob'): Promis
     const res = await CapacitorHttp.get({
       url,
       responseType: as === 'blob' ? 'arraybuffer' : 'text',
+      connectTimeout: 15000,
+      readTimeout: TIMEOUT_MS,
     });
     if (res.status < 200 || res.status >= 300) throw new Error(`HTTP Error: ${res.status}`);
     return as === 'blob' ? base64ToBlob(res.data as string) : String(res.data);
   }
-  const res = await fetch(proxied(url));
+  const res = await fetch(proxied(url), { signal: AbortSignal.timeout(TIMEOUT_MS) });
   if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
   return as === 'blob' ? res.blob() : res.text();
 }

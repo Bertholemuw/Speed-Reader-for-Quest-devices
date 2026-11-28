@@ -47,27 +47,41 @@ const GutenbergExplorer: React.FC<GutenbergExplorerProps> = ({ onClose, onAddBoo
 
   useBackHandler(true, onClose);
 
+  // Official PGLAF mirror, used when gutenberg.org is down or rate-limiting.
+  const MIRROR = 'https://gutenberg.pglaf.org/cache/epub';
+
   const handleDownload = async (book: GutenbergBook) => {
     setDownloadingId(book.id);
-    try {
-      const epubUrl = book.formats['application/epub+zip'] || book.formats['application/x-mobipocket-ebook'];
-      const textUrl = book.formats['text/plain; charset=us-ascii'] || book.formats['text/plain'];
+    const f = book.formats;
+    const textKey = Object.keys(f).find(k => k.startsWith('text/plain'));
+    const candidates: { url: string; kind: 'epub' | 'text' }[] = [];
+    // Text-only EPUBs: RSVP ignores images, and the image editions can be 25 MB+.
+    if (f['application/epub+zip']) candidates.push({ url: `https://www.gutenberg.org/ebooks/${book.id}.epub.noimages`, kind: 'epub' });
+    candidates.push({ url: `${MIRROR}/${book.id}/pg${book.id}.epub`, kind: 'epub' });
+    if (textKey) candidates.push({ url: f[textKey], kind: 'text' });
+    candidates.push({ url: `${MIRROR}/${book.id}/pg${book.id}.txt`, kind: 'text' });
 
-      if (epubUrl) {
-        const blob = await fetchCrossOrigin(epubUrl, 'blob');
-        const { title, content } = await extractTextFromEpub(blob);
-        onAddBook(title || book.title, content);
-      } else if (textUrl) {
-        const content = await fetchCrossOrigin(textUrl, 'text');
-        onAddBook(book.title, content);
-      } else {
-        alert("No compatible format found for this book.");
-        return;
+    let lastError: unknown = null;
+    try {
+      for (const { url, kind } of candidates) {
+        try {
+          if (kind === 'epub') {
+            const { title, content } = await extractTextFromEpub(await fetchCrossOrigin(url, 'blob'));
+            if (!content) throw new Error('Empty EPUB');
+            onAddBook(title || book.title, content);
+          } else {
+            const content = await fetchCrossOrigin(url, 'text');
+            if (!content.trim() || /^\s*<(!doctype|html)/i.test(content)) throw new Error('Not a text file');
+            onAddBook(book.title, content);
+          }
+          onClose();
+          return;
+        } catch (e) {
+          console.warn(`Gutenberg download failed for ${url}`, e);
+          lastError = e;
+        }
       }
-      onClose();
-    } catch (e) {
-      console.error("Gutenberg Download/Parse Error:", e);
-      alert(`Failed to add book: ${e instanceof Error ? e.message : 'Unknown error'}. Check your connection; Project Gutenberg may be temporarily unavailable.`);
+      alert(`Failed to add book: ${lastError instanceof Error ? lastError.message : 'Unknown error'}. Check your connection; Project Gutenberg and its mirror may be temporarily unavailable.`);
     } finally {
       setDownloadingId(null);
     }
