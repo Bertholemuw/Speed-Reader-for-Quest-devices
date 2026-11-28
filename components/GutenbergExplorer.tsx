@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
-import { Search, Download, Loader2, X, BookOpen } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Download, Loader2, X, BookOpen, RefreshCw, WifiOff } from 'lucide-react';
+import starterCatalog from '../data/gutenbergCatalog.json';
 import BookDetails from './BookDetails';
 import { formatAuthor, cleanSynopsis, cleanSubjects } from '../services/bookMeta';
 import { BookMeta } from '../types';
@@ -8,7 +9,7 @@ import { extractTextFromEpub } from '../services/epubService';
 import { fetchCrossOrigin, isNative } from '../services/platform';
 import { useBackHandler } from '../services/backButton';
 
-interface GutenbergBook {
+export interface GutenbergBook {
   id: number;
   title: string;
   authors: { name: string }[];
@@ -25,6 +26,35 @@ const metaFor = (book: GutenbergBook): BookMeta => ({
   subjects: cleanSubjects(book.subjects, book.bookshelves),
 });
 
+const CATALOG_TIMEOUT_MS = 20000;
+const POPULAR_CACHE_KEY = 'gutendex_popular_v1';
+const STARTER = starterCatalog as GutenbergBook[];
+
+const loadCachedPopular = (): GutenbergBook[] => {
+  try {
+    const cached = JSON.parse(localStorage.getItem(POPULAR_CACHE_KEY) || 'null');
+    if (Array.isArray(cached) && cached.length) return cached;
+  } catch { /* fall through */ }
+  return STARTER;
+};
+
+const savePopular = (books: GutenbergBook[]) => {
+  try { localStorage.setItem(POPULAR_CACHE_KEY, JSON.stringify(books)); } catch { /* storage full: not critical */ }
+};
+
+const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+/** Matches every search word against title and author, across bundled and cached books. */
+const searchLocal = (query: string): GutenbergBook[] => {
+  const terms = normalize(query).split(/\s+/).filter(Boolean);
+  const pool = new Map<number, GutenbergBook>();
+  [...loadCachedPopular(), ...STARTER].forEach(b => pool.set(b.id, b));
+  return [...pool.values()].filter(b => {
+    const hay = normalize(`${b.title} ${b.authors.map(a => a.name).join(' ')}`);
+    return terms.every(t => hay.includes(t));
+  });
+};
+
 interface GutenbergExplorerProps {
   onClose: () => void;
   onAddBook: (title: string, content: string, meta?: BookMeta) => void;
@@ -33,24 +63,41 @@ interface GutenbergExplorerProps {
 
 const GutenbergExplorer: React.FC<GutenbergExplorerProps> = ({ onClose, onAddBook, theme }) => {
   const [search, setSearch] = useState('');
-  const [books, setBooks] = useState<GutenbergBook[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Shown instantly: the last list fetched on this device, or the catalogue bundled with the app.
+  const [books, setBooks] = useState<GutenbergBook[]>(loadCachedPopular);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [activeQuery, setActiveQuery] = useState('');
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [selected, setSelected] = useState<GutenbergBook | null>(null);
+  const requestId = useRef(0);
 
-  const fetchBooks = async (query = '') => {
-    setLoading(true);
+  const fetchBooks = async (rawQuery = '') => {
+    const query = rawQuery.trim();
+    const id = ++requestId.current;
+    setActiveQuery(query);
+    // Instant results from the books we already have, while the full search runs.
+    if (query) setBooks(searchLocal(query));
+    else setBooks(loadCachedPopular());
+    setStatus('loading');
     try {
-      const url = query 
+      const url = query
         ? `https://gutendex.com/books/?search=${encodeURIComponent(query)}`
         : `https://gutendex.com/books/`;
-      const res = await fetch(url);
-      const data = await res.json();
-      setBooks(data.results || []);
+      const res = await fetch(url, { signal: AbortSignal.timeout(CATALOG_TIMEOUT_MS) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const results: GutenbergBook[] = (await res.json()).results || [];
+      if (id !== requestId.current) return; // a newer search started
+      if (query) {
+        const seen = new Set(results.map(b => b.id));
+        setBooks([...results, ...searchLocal(query).filter(b => !seen.has(b.id))]);
+      } else {
+        setBooks(results);
+        savePopular(results);
+      }
+      setStatus('idle');
     } catch (e) {
       console.error("Gutenberg Search Error", e);
-    } finally {
-      setLoading(false);
+      if (id === requestId.current) setStatus('error');
     }
   };
 
@@ -144,15 +191,22 @@ const GutenbergExplorer: React.FC<GutenbergExplorerProps> = ({ onClose, onAddBoo
 
         {/* Content */}
         <div className="flex-1 overflow-auto p-4 md:p-8 pt-2 md:pt-4">
-          {loading ? (
-            <div className="h-full flex flex-col items-center justify-center gap-4 text-zinc-500">
-              <Loader2 className="animate-spin text-cyan-500" size={48} />
-              <p className="font-bold tracking-widest uppercase text-xs">Scanning Digital Archives...</p>
+          {status !== 'idle' && (
+            <div className={`mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${status === 'error' ? 'text-amber-500' : 'text-zinc-500'}`}>
+              {status === 'loading' ? (
+                <><Loader2 className="animate-spin text-cyan-500" size={14} /> {activeQuery ? 'Searching all of Gutenberg...' : 'Refreshing popular books...'}</>
+              ) : (
+                <>
+                  <WifiOff size={14} /> {books.length ? "Couldn't reach Gutenberg. Showing saved books." : "Couldn't reach Gutenberg."}
+                  <button onClick={() => fetchBooks(activeQuery)} className="ml-1 flex items-center gap-1 text-cyan-500 normal-case tracking-normal text-sm"><RefreshCw size={14} /> Retry</button>
+                </>
+              )}
             </div>
-          ) : books.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center gap-4 text-zinc-500 opacity-50">
-              <BookOpen size={64} strokeWidth={1} />
-              <p>No results found. Try a different search term.</p>
+          )}
+          {books.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center gap-4 text-zinc-500 opacity-70">
+              {status === 'loading' ? <Loader2 className="animate-spin text-cyan-500" size={48} /> : <BookOpen size={64} strokeWidth={1} />}
+              <p>{status === 'loading' ? 'Searching...' : status === 'error' ? 'Check your connection and tap Retry.' : 'No results found. Try a different search term.'}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6 pb-12">
