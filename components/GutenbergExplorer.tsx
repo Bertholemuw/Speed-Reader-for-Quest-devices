@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, Download, Loader2, X, BookOpen, RefreshCw, WifiOff } from 'lucide-react';
 import starterCatalog from '../data/gutenbergCatalog.json';
+import { CATEGORIES, inCategory } from '../services/categories';
 import BookDetails from './BookDetails';
 import { formatAuthor, cleanSynopsis, cleanSubjects } from '../services/bookMeta';
 import { BookMeta } from '../types';
@@ -70,6 +71,18 @@ const GutenbergExplorer: React.FC<GutenbergExplorerProps> = ({ onClose, onAddBoo
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [selected, setSelected] = useState<GutenbergBook | null>(null);
   const requestId = useRef(0);
+  const [category, setCategory] = useState('all');
+
+  // With a category picked, browse everything known locally (bundled + cached + latest results), most popular first.
+  const visible = useMemo(() => {
+    if (category === 'all') return books;
+    const pool = new Map<number, GutenbergBook>();
+    const base = activeQuery ? books : [...books, ...loadCachedPopular(), ...STARTER];
+    base.forEach(b => pool.set(b.id, b));
+    return [...pool.values()]
+      .filter(b => inCategory(b, category))
+      .sort((a, b) => activeQuery ? 0 : b.download_count - a.download_count);
+  }, [books, category, activeQuery]);
 
   const fetchBooks = async (rawQuery = '') => {
     const query = rawQuery.trim();
@@ -187,6 +200,22 @@ const GutenbergExplorer: React.FC<GutenbergExplorerProps> = ({ onClose, onAddBoo
               onKeyDown={(e) => e.key === 'Enter' && fetchBooks(search)}
             />
           </div>
+          {/* Categories */}
+          <div className="flex gap-2 overflow-x-auto mt-3 -mx-4 px-4 md:mx-0 md:px-0 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Categories">
+            {CATEGORIES.map(c => (
+              <button
+                key={c.id}
+                role="tab"
+                aria-selected={category === c.id}
+                onClick={() => setCategory(c.id)}
+                className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold border transition-all ${
+                  category === c.id ? 'bg-cyan-600 border-cyan-600 text-white' : 'border-white/10 bg-white/5 opacity-80 hover:opacity-100'
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Content */}
@@ -203,14 +232,14 @@ const GutenbergExplorer: React.FC<GutenbergExplorerProps> = ({ onClose, onAddBoo
               )}
             </div>
           )}
-          {books.length === 0 ? (
+          {visible.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center gap-4 text-zinc-500 opacity-70">
               {status === 'loading' ? <Loader2 className="animate-spin text-cyan-500" size={48} /> : <BookOpen size={64} strokeWidth={1} />}
-              <p>{status === 'loading' ? 'Searching...' : status === 'error' ? 'Check your connection and tap Retry.' : 'No results found. Try a different search term.'}</p>
+              <p>{status === 'loading' ? 'Searching...' : status === 'error' ? 'Check your connection and tap Retry.' : category !== 'all' ? 'No books in this category yet. Try another, or search.' : 'No results found. Try a different search term.'}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6 pb-12">
-              {books.map((book) => (
+              {visible.map((book) => (
                 <div key={book.id} className="group p-4 md:p-6 rounded-2xl bg-white/5 border border-white/5 hover:border-cyan-500/50 hover:bg-white/10 transition-all flex flex-col gap-4">
                   <button onClick={() => setSelected(book)} className="flex-1 text-left" aria-label={`About ${book.title}`}>
                     <h3 className="font-bold text-lg line-clamp-2 leading-tight mb-2 group-hover:text-cyan-400 transition-colors">{book.title}</h3>
