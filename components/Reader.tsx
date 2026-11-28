@@ -5,7 +5,7 @@ import ScrollText from './ScrollText';
 import { 
   Play, Pause, RotateCcw, SkipBack, SkipForward, 
   Settings2, ChevronLeft, BrainCircuit, MessageSquareText,
-  Type, FastForward, X, Maximize, Minimize, Zap, AlignJustify
+  Type, FastForward, X, Maximize, Minimize, Zap, AlignJustify, Minus, Plus
 } from 'lucide-react';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import { summarizePassage, explainWord, aiAvailable } from '../services/geminiService';
@@ -87,6 +87,10 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
     const next = Math.max(0, Math.min(words.current.length - 1, index + amount));
     setIndex(next);
   };
+
+  // Scroll mode speed steps; these buttons stay live while playing (they sit above the pause layer).
+  const changeSpeed = (delta: number) =>
+    onUpdateSettings({ wpm: Math.max(100, Math.min(1500, settings.wpm + delta)) });
 
   const handleReset = () => {
     setIndex(0);
@@ -212,8 +216,6 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
     'extra-large': 'text-3xl md:text-5xl'
   };
 
-  const accentColor = { dark: '#06b6d4', amoled: '#0891b2', sepia: '#9a3412', light: '#0891b2' }[settings.theme];
-
   const themeColors = {
     dark: { bg: 'bg-zinc-950', card: 'bg-zinc-900', border: 'border-zinc-800', text: 'text-zinc-100', muted: 'text-zinc-500', accent: 'text-cyan-500' },
     amoled: { bg: 'bg-black', card: 'bg-zinc-950', border: 'border-zinc-900', text: 'text-white', muted: 'text-zinc-600', accent: 'text-cyan-600' },
@@ -252,7 +254,6 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
               glideMs={isPlaying ? 60000 / settings.wpm : 0}
               className={`${fontClassMap[settings.fontFamily]} ${scrollSizeMap[settings.fontSize]}`}
               textClass={themeColors.text}
-              accentColor={accentColor}
               onClick={handleTogglePlay}
             />
           ) : (
@@ -294,7 +295,11 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
         {/* Control Panel */}
         <div className={`mt-4 md:mt-10 flex flex-col items-center gap-5 md:gap-8 w-full max-w-3xl p-5 md:p-10 rounded-3xl md:rounded-[2rem] border transition-all duration-500 ${uiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'} ${themeColors.card} ${themeColors.border} shadow-xl`}>
           <div className="flex items-center gap-8 md:gap-16">
-            <button onClick={() => handleSkip(-10)} aria-label="Back 10 words" className={`${themeColors.muted} hover:text-cyan-500 transition-all hover:scale-110 active:scale-95`}><SkipBack className="w-7 h-7 md:w-8 md:h-8" /></button>
+            {mode === 'scroll' ? (
+              <button onClick={() => changeSpeed(-25)} aria-label="Scroll slower" className={`relative z-[410] w-12 h-12 rounded-full border ${themeColors.border} ${themeColors.text} flex items-center justify-center transition-all active:scale-90`}><Minus className="w-6 h-6" /></button>
+            ) : (
+              <button onClick={() => handleSkip(-10)} aria-label="Back 10 words" className={`${themeColors.muted} hover:text-cyan-500 transition-all hover:scale-110 active:scale-95`}><SkipBack className="w-7 h-7 md:w-8 md:h-8" /></button>
+            )}
             <button 
               onClick={handleTogglePlay}
               aria-label={isPlaying ? "Pause" : "Play"}
@@ -302,7 +307,11 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
             >
               {isPlaying ? <Pause className="w-8 h-8 md:w-10 md:h-10" fill="currentColor" /> : <Play className="w-8 h-8 md:w-10 md:h-10 ml-1 md:ml-2" fill="currentColor" />}
             </button>
-            <button onClick={() => handleSkip(10)} aria-label="Forward 10 words" className={`${themeColors.muted} hover:text-cyan-500 transition-all hover:scale-110 active:scale-95`}><SkipForward className="w-7 h-7 md:w-8 md:h-8" /></button>
+            {mode === 'scroll' ? (
+              <button onClick={() => changeSpeed(25)} aria-label="Scroll faster" className={`relative z-[410] w-12 h-12 rounded-full border ${themeColors.border} ${themeColors.text} flex items-center justify-center transition-all active:scale-90`}><Plus className="w-6 h-6" /></button>
+            ) : (
+              <button onClick={() => handleSkip(10)} aria-label="Forward 10 words" className={`${themeColors.muted} hover:text-cyan-500 transition-all hover:scale-110 active:scale-95`}><SkipForward className="w-7 h-7 md:w-8 md:h-8" /></button>
+            )}
             <button onClick={handleReset} aria-label="Restart" className={`${themeColors.muted} hover:text-red-500 transition-all hover:scale-110 active:scale-95`}><RotateCcw className="w-7 h-7 md:w-8 md:h-8" /></button>
           </div>
 

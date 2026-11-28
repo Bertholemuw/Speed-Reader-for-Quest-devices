@@ -8,8 +8,6 @@ interface ScrollTextProps {
   glideMs: number;
   className: string;
   textClass: string;
-  /** CSS colour for the word being read */
-  accentColor: string;
   onClick: () => void;
 }
 
@@ -22,7 +20,7 @@ const WINDOW_STEP = 200;
  * Auto-scrolling text: the line being read sits in the middle, neighbouring
  * lines fade to darkness, and the page glides up at the reading speed.
  */
-const ScrollText: React.FC<ScrollTextProps> = ({ words, paragraphStarts, index, glideMs, className, textClass, accentColor, onClick }) => {
+const ScrollText: React.FC<ScrollTextProps> = ({ words, paragraphStarts, index, glideMs, className, textClass, onClick }) => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const columnRef = useRef<HTMLDivElement>(null);
   const wordRefs = useRef<Map<number, HTMLSpanElement>>(new Map());
@@ -75,7 +73,6 @@ const ScrollText: React.FC<ScrollTextProps> = ({ words, paragraphStarts, index, 
       onClick={onClick}
       className={`relative overflow-hidden select-none cursor-pointer ${className}`}
       style={{
-        ['--rsvp-accent' as string]: accentColor,
         height: `${VISIBLE_LINES * 1.6}em`,
         lineHeight: 1.6,
         WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, #000 38%, #000 62%, transparent 100%)',
@@ -89,14 +86,8 @@ const ScrollText: React.FC<ScrollTextProps> = ({ words, paragraphStarts, index, 
       >
         {content}
       </div>
-      <HighlightStyle index={index} />
     </div>
   );
 };
-
-/** Colours the current word without re-rendering the whole text window. */
-const HighlightStyle: React.FC<{ index: number }> = ({ index }) => (
-  <style>{`[data-i="${index}"]{color:var(--rsvp-accent);}`}</style>
-);
 
 export default ScrollText;
