@@ -5,14 +5,27 @@ export interface Book {
   content: string;
   lastPosition: number;
   addedAt: number;
+  author?: string;
+  synopsis?: string;
+  subjects?: string[];
+  /** Version of the word-splitting rules lastPosition was saved with. */
+  tokenizer?: number;
 }
+
+export type BookMeta = Pick<Book, 'author' | 'synopsis' | 'subjects'>;
 
 export type ThemeType = 'dark' | 'sepia' | 'light' | 'amoled';
 export type FontType = 'jetbrains' | 'inter' | 'serif';
 export type FontSize = 'small' | 'medium' | 'large' | 'extra-large';
 
+export type ReadingMode = 'rsvp' | 'scroll';
+
 export interface UserSettings {
   wpm: number;
+  /** 'rsvp' flashes one word at a time; 'scroll' auto-scrolls the page */
+  readingMode: ReadingMode;
+  /** Word-flash mode: blank frame between words to stop ghosting at high WPM */
+  wordGap?: boolean;
   fontSize: FontSize;
   fontFamily: FontType;
   theme: ThemeType;

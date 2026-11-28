@@ -1,15 +1,18 @@
 
-import React, { useState } from 'react';
-import { Book, ThemeType } from '../types';
-import { Plus, Trash2, FileText, Upload, BookOpen, Clock, X, Globe, Loader2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Book, BookMeta, ThemeType } from '../types';
+import BookDetails from './BookDetails';
+import { tokenize } from '../services/tokenize';
+import { Plus, Trash2, FileText, Upload, BookOpen, Clock, X, Globe, Loader2, Info, Play } from 'lucide-react';
 import GutenbergExplorer from './GutenbergExplorer';
 import { extractTextFromEpub } from '../services/epubService';
+import { useBackHandler } from '../services/backButton';
 
 interface LibraryProps {
   books: Book[];
   onSelect: (book: Book) => void;
   onDelete: (id: string) => void;
-  onAdd: (title: string, content: string) => void;
+  onAdd: (title: string, content: string, meta?: BookMeta) => void;
   theme: ThemeType;
 }
 
@@ -19,6 +22,17 @@ const Library: React.FC<LibraryProps> = ({ books, onSelect, onDelete, onAdd, the
   const [isProcessing, setIsProcessing] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
+  const [detailsBook, setDetailsBook] = useState<Book | null>(null);
+
+  useBackHandler(isAdding, () => setIsAdding(false));
+
+  // Tokenizing a whole novel is costly, so only recount when the books themselves change.
+  const contentKey = books.map(b => b.id).join(',');
+  const wordCounts = useMemo(
+    () => new Map(books.map(b => [b.id, tokenize(b.content).length])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contentKey]
+  );
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -63,74 +77,85 @@ const Library: React.FC<LibraryProps> = ({ books, onSelect, onDelete, onAdd, the
   }[theme];
 
   return (
-    <div className="p-10 max-w-7xl mx-auto space-y-12">
+    <div className="p-4 md:p-10 max-w-7xl mx-auto space-y-6 md:space-y-12">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <section className="space-y-4">
-          <h2 className={`text-5xl font-bold tracking-tight ${themeColors.text}`}>Your Knowledge Base</h2>
-          <p className={`${themeColors.muted} text-lg max-w-2xl`}>Speed read your local EPUB/TXT files or discover classics directly from Project Gutenberg.</p>
+          <h2 className={`text-3xl md:text-5xl font-bold tracking-tight ${themeColors.text}`}>Your Knowledge Base</h2>
+          <p className={`${themeColors.muted} text-base md:text-lg max-w-2xl`}>Speed read your local EPUB/TXT files or discover classics directly from Project Gutenberg.</p>
         </section>
         
         <button 
           onClick={() => setIsExploring(true)}
-          className="flex items-center gap-3 px-8 py-4 bg-cyan-600 text-white font-bold rounded-2xl hover:bg-cyan-500 transition-all shadow-xl shadow-cyan-600/20 active:scale-95"
+          className="flex items-center justify-center gap-3 px-6 md:px-8 py-3 md:py-4 bg-cyan-600 text-white font-bold rounded-2xl hover:bg-cyan-500 transition-all shadow-xl shadow-cyan-600/20 active:scale-95"
         >
           <Globe size={24} />
           Discover Gutenberg
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
         <div 
           onClick={() => setIsAdding(true)}
-          className={`h-72 rounded-[2rem] border-2 border-dashed flex flex-col items-center justify-center gap-4 hover:border-cyan-500/50 hover:bg-cyan-500/5 group transition-all cursor-pointer ${themeColors.border}`}
+          className={`h-32 md:h-72 rounded-3xl md:rounded-[2rem] border-2 border-dashed flex flex-col items-center justify-center gap-4 hover:border-cyan-500/50 hover:bg-cyan-500/5 group transition-all cursor-pointer ${themeColors.border}`}
         >
-          <div className="w-20 h-20 rounded-2xl bg-zinc-900/10 flex items-center justify-center group-hover:scale-110 group-hover:bg-cyan-600 transition-all">
-            <Plus className={`${themeColors.muted} group-hover:text-white`} size={40} />
+          <div className="w-12 h-12 md:w-20 md:h-20 rounded-2xl bg-zinc-900/10 flex items-center justify-center group-hover:scale-110 group-hover:bg-cyan-600 transition-all">
+            <Plus className={`${themeColors.muted} group-hover:text-white w-7 h-7 md:w-10 md:h-10`} />
           </div>
           <span className={`${themeColors.muted} font-bold text-lg group-hover:text-cyan-400`}>Import Book</span>
         </div>
 
-        {books.map((book) => (
+        {books.map((book) => { const wordCount = wordCounts.get(book.id) ?? 0; return (
           <div 
             key={book.id}
-            className={`group relative h-72 border rounded-[2rem] p-10 hover:border-cyan-500/50 hover:shadow-2xl transition-all cursor-pointer flex flex-col ${themeColors.card} ${themeColors.border}`}
+            className={`group relative md:h-72 border rounded-3xl md:rounded-[2rem] p-5 md:p-10 hover:border-cyan-500/50 hover:shadow-2xl transition-all cursor-pointer flex flex-col ${themeColors.card} ${themeColors.border}`}
             onClick={() => onSelect(book)}
           >
-            <div className="flex-1 space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-cyan-600/10 flex items-center justify-center text-cyan-500 group-hover:bg-cyan-600 group-hover:text-white transition-colors">
-                <FileText size={28} />
+            <div className="flex-1 space-y-3 md:space-y-4">
+              <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-cyan-600/10 flex items-center justify-center text-cyan-500 group-hover:bg-cyan-600 group-hover:text-white transition-colors">
+                <FileText className="w-5 h-5 md:w-7 md:h-7" />
               </div>
-              <h3 className={`text-2xl font-bold line-clamp-2 leading-tight ${themeColors.text}`}>{book.title}</h3>
+              <h3 className={`text-xl md:text-2xl font-bold line-clamp-2 leading-tight ${themeColors.text}`}>{book.title}</h3>
+              {book.author && <p className={`${themeColors.muted} italic -mt-2`}>{book.author}</p>}
               <div className={`flex items-center gap-4 text-sm font-medium ${themeColors.muted}`}>
-                <span className="flex items-center gap-1.5"><BookOpen size={16} /> {book.content.split(/\s+/).length.toLocaleString()} words</span>
+                <span className="flex items-center gap-1.5"><BookOpen size={16} /> {wordCount.toLocaleString()} words</span>
                 <span className="flex items-center gap-1.5"><Clock size={16} /> {new Date(book.addedAt).toLocaleDateString()}</span>
               </div>
             </div>
-            <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center justify-between mt-4 md:mt-6">
                <div className="text-xs font-bold px-4 py-2 bg-cyan-600/10 rounded-full text-cyan-500 tracking-wider">
-                {Math.round((book.lastPosition / (book.content.split(/\s+/).length || 1)) * 100)}% COMPLETE
+                {Math.round((book.lastPosition / (wordCount || 1)) * 100)}% COMPLETE
                </div>
+               <div className="flex items-center gap-1">
+               <button
+                onClick={(e) => { e.stopPropagation(); setDetailsBook(book); }}
+                aria-label={`About ${book.title}`}
+                className={`${themeColors.muted} hover:text-cyan-500 transition-colors p-2`}
+               >
+                <Info size={24} />
+               </button>
                <button 
+                aria-label={`Delete ${book.title}`}
                 onClick={(e) => { e.stopPropagation(); onDelete(book.id); }}
                 className={`${themeColors.muted} hover:text-red-500 transition-colors p-2`}
                >
                 <Trash2 size={24} />
                </button>
+               </div>
             </div>
           </div>
-        ))}
+        ); })}
       </div>
 
       {isAdding && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-xl z-[120] flex items-center justify-center p-6" onClick={() => setIsAdding(false)}>
-          <div className={`border rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl ${theme === 'light' ? 'bg-white border-zinc-200' : theme === 'sepia' ? 'bg-[#f4ecd8] border-[#d3cbb3]' : 'bg-zinc-900 border-zinc-700'}`} onClick={e => e.stopPropagation()}>
-            <div className="p-10 space-y-8">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xl z-[120] flex items-center justify-center p-3 md:p-6" onClick={() => setIsAdding(false)}>
+          <div className={`border rounded-3xl md:rounded-[2.5rem] w-full max-w-2xl max-h-[95vh] overflow-auto shadow-2xl ${theme === 'light' ? 'bg-white border-zinc-200' : theme === 'sepia' ? 'bg-[#f4ecd8] border-[#d3cbb3]' : 'bg-zinc-900 border-zinc-700'}`} onClick={e => e.stopPropagation()}>
+            <div className="p-5 md:p-10 space-y-5 md:space-y-8">
               <div className="flex items-center justify-between">
-                <h3 className={`text-3xl font-bold ${themeColors.text}`}>Import Knowledge</h3>
+                <h3 className={`text-2xl md:text-3xl font-bold ${themeColors.text}`}>Import Knowledge</h3>
                 <button onClick={() => setIsAdding(false)} className={themeColors.muted}><X size={32} /></button>
               </div>
 
-              <div className={`relative p-12 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center gap-4 ${themeColors.border} bg-black/5 hover:bg-black/10 transition-colors`}>
+              <div className={`relative p-8 md:p-12 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center gap-4 ${themeColors.border} bg-black/5 hover:bg-black/10 transition-colors`}>
                 {isProcessing ? (
                    <div className="flex flex-col items-center gap-4">
                      <Loader2 className="animate-spin text-cyan-500" size={48} />
@@ -140,8 +165,8 @@ const Library: React.FC<LibraryProps> = ({ books, onSelect, onDelete, onAdd, the
                   <>
                     <Upload className="text-cyan-500" size={48} />
                     <div className="text-center">
-                      <p className={`${themeColors.text} font-bold text-lg`}>Drop .epub or .txt file</p>
-                      <p className={`${themeColors.muted} text-sm`}>Or click to select from your device</p>
+                      <p className={`${themeColors.text} font-bold text-lg`}>Choose an .epub or .txt file</p>
+                      <p className={`${themeColors.muted} text-sm`}>From your device storage</p>
                     </div>
                     <input type="file" accept=".txt,.epub" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
                   </>
@@ -165,13 +190,32 @@ const Library: React.FC<LibraryProps> = ({ books, onSelect, onDelete, onAdd, the
               </div>
               <button 
                 onClick={handleManualAdd} disabled={!newTitle || !newContent || isProcessing}
-                className="w-full py-5 bg-cyan-600 text-white font-bold text-xl rounded-2xl hover:bg-cyan-500 disabled:opacity-50 transition-all shadow-lg active:scale-95"
+                className="w-full py-4 md:py-5 bg-cyan-600 text-white font-bold text-lg md:text-xl rounded-2xl hover:bg-cyan-500 disabled:opacity-50 transition-all shadow-lg active:scale-95"
               >
                 Add to Library
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {detailsBook && (
+        <BookDetails
+          title={detailsBook.title}
+          author={detailsBook.author}
+          synopsis={detailsBook.synopsis}
+          subjects={detailsBook.subjects}
+          theme={theme}
+          onClose={() => setDetailsBook(null)}
+          action={
+            <button
+              onClick={() => { const b = detailsBook; setDetailsBook(null); onSelect(b); }}
+              className="w-full flex items-center justify-center gap-2 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-lg rounded-2xl transition-all"
+            >
+              <Play size={20} fill="currentColor" /> {detailsBook.lastPosition > 0 ? 'Continue Reading' : 'Start Reading'}
+            </button>
+          }
+        />
       )}
 
       {isExploring && (

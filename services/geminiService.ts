@@ -1,11 +1,16 @@
-
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const apiKey = process.env.API_KEY;
+
+// AI features are optional: without a key the app works as a plain speed reader.
+export const aiAvailable = Boolean(apiKey);
+
+let ai: GoogleGenAI | null = null;
+const client = () => (ai ??= new GoogleGenAI({ apiKey }));
 
 export const summarizePassage = async (text: string) => {
   try {
-    const response = await ai.models.generateContent({
+    const response = await client().models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Summarize this text concisely for someone who is speed reading it. Focus on key plot points or main arguments: \n\n${text.substring(0, 5000)}`,
       config: {
@@ -22,7 +27,7 @@ export const summarizePassage = async (text: string) => {
 
 export const explainWord = async (word: string, context: string) => {
   try {
-    const response = await ai.models.generateContent({
+    const response = await client().models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Briefly define the word "${word}" in the following context: \n\n"${context}"`,
       config: {
