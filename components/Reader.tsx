@@ -1,16 +1,17 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Book, SpritzWord, UserSettings, ThemeType, FontType, FontSize } from '../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Book, SpritzWord, UserSettings, ThemeType, FontType, FontSize, ReadingMode } from '../types';
+import ScrollText from './ScrollText';
 import { 
   Play, Pause, RotateCcw, SkipBack, SkipForward, 
   Settings2, ChevronLeft, BrainCircuit, MessageSquareText,
-  Type, Palette, FastForward, X, Maximize, Minimize
+  Type, FastForward, X, Maximize, Minimize, Zap, AlignJustify
 } from 'lucide-react';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import { summarizePassage, explainWord, aiAvailable } from '../services/geminiService';
 import { useBackHandler } from '../services/backButton';
 import { isNative } from '../services/platform';
-import { tokenize } from '../services/tokenize';
+import { tokenize, paragraphStarts } from '../services/tokenize';
 
 interface ReaderProps {
   book: Book;
@@ -34,6 +35,10 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
   const timeoutRef = useRef<number | null>(null);
   const controlsTimeoutRef = useRef<number | null>(null);
   const words = useRef<string[]>(tokenize(book.content));
+  const paras = useMemo(() => paragraphStarts(book.content), [book.content]);
+  // Keeps the pause layer up until the tap that paused finishes, so it can't fall through to a button.
+  const [pauseGuard, setPauseGuard] = useState(false);
+  const mode: ReadingMode = settings.readingMode ?? 'rsvp';
 
   // Spritz Logic: Optimal Recognition Point calculation
   const getSpritzWord = (word: string): SpritzWord => {
@@ -56,6 +61,27 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
   const handleTogglePlay = () => {
     setIsPlaying(!isPlaying);
   };
+
+  // Tap anywhere to pause: reacts on touch-down, the fastest possible moment.
+  const handlePauseTap = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsPlaying(false);
+    setPauseGuard(true);
+    showZenUI();
+    window.setTimeout(() => setPauseGuard(false), 600);
+  };
+
+  // Space bar toggles play on Quest/desktop keyboards
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || (e.target as HTMLElement)?.tagName === 'INPUT') return;
+      e.preventDefault();
+      setIsPlaying(p => !p);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const handleSkip = (amount: number) => {
     const next = Math.max(0, Math.min(words.current.length - 1, index + amount));
@@ -179,6 +205,15 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
     'extra-large': 'text-6xl md:text-9xl'
   };
 
+  const scrollSizeMap: Record<FontSize, string> = {
+    small: 'text-lg md:text-2xl',
+    medium: 'text-xl md:text-3xl',
+    large: 'text-2xl md:text-4xl',
+    'extra-large': 'text-3xl md:text-5xl'
+  };
+
+  const accentColor = { dark: '#06b6d4', amoled: '#0891b2', sepia: '#9a3412', light: '#0891b2' }[settings.theme];
+
   const themeColors = {
     dark: { bg: 'bg-zinc-950', card: 'bg-zinc-900', border: 'border-zinc-800', text: 'text-zinc-100', muted: 'text-zinc-500', accent: 'text-cyan-500' },
     amoled: { bg: 'bg-black', card: 'bg-zinc-950', border: 'border-zinc-900', text: 'text-white', muted: 'text-zinc-600', accent: 'text-cyan-600' },
@@ -209,6 +244,18 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
         <div className={`w-full rounded-3xl md:rounded-[2rem] border p-5 md:p-16 relative overflow-hidden transition-all duration-500 ${isZenMode ? 'border-transparent bg-transparent shadow-none p-0' : `${themeColors.card} ${themeColors.border} shadow-2xl`}`}>
           
           {/* Word Display Engine */}
+          {mode === 'scroll' ? (
+            <ScrollText
+              words={words.current}
+              paragraphStarts={paras}
+              index={index}
+              glideMs={isPlaying ? 60000 / settings.wpm : 0}
+              className={`${fontClassMap[settings.fontFamily]} ${scrollSizeMap[settings.fontSize]}`}
+              textClass={themeColors.text}
+              accentColor={accentColor}
+              onClick={handleTogglePlay}
+            />
+          ) : (
           <div
             onClick={handleTogglePlay}
             className={`h-40 md:h-64 flex items-center justify-center relative overflow-hidden select-none cursor-pointer transition-transform duration-500 ${isZenMode ? 'scale-110 translate-y-8' : ''}`}
@@ -225,6 +272,7 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
               </span>
             </div>
           </div>
+          )}
 
           {/* Progress Indicator */}
           <div className={`mt-6 md:mt-12 space-y-3 md:space-y-4 md:px-6 transition-opacity duration-500 ${uiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
@@ -269,6 +317,14 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
             </div>}
             
             <div className="flex gap-3">
+              <button
+                onClick={() => onUpdateSettings({ readingMode: mode === 'rsvp' ? 'scroll' : 'rsvp' })}
+                aria-label={mode === 'rsvp' ? 'Switch to scroll mode' : 'Switch to word flash mode'}
+                className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl border ${themeColors.border} hover:bg-zinc-500/5 transition-all text-sm font-bold uppercase tracking-wider ${themeColors.text}`}
+              >
+                {mode === 'rsvp' ? <AlignJustify size={18} /> : <Zap size={18} />}
+                <span className="hidden sm:inline">{mode === 'rsvp' ? 'Scroll' : 'Flash'}</span>
+              </button>
               <button 
                 onClick={toggleZenMode}
                 className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl border ${themeColors.border} hover:bg-zinc-500/5 transition-all text-sm font-bold uppercase tracking-wider ${themeColors.text}`}
@@ -290,6 +346,18 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
           </div>
         </div>
       </div>
+
+      {/* While playing, the whole screen is the pause button */}
+      {(isPlaying || pauseGuard) && (
+        <div
+          className="fixed inset-0 z-[400]"
+          style={{ touchAction: 'none' }}
+          onPointerDown={isPlaying ? handlePauseTap : undefined}
+          onClick={e => e.stopPropagation()}
+          aria-label="Tap anywhere to pause"
+          role="button"
+        />
+      )}
 
       {/* Settings Modal */}
       {isSettingsOpen && (
@@ -328,6 +396,24 @@ const Reader: React.FC<ReaderProps> = ({ book, onUpdatePosition, onClose, settin
                       }`}
                     >
                       {f}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Reading Mode */}
+              <div className="space-y-4">
+                <span className={`font-bold text-sm ${themeColors.muted}`}>MODE</span>
+                <div className="grid grid-cols-2 gap-3">
+                  {([['rsvp', 'Word flash', Zap], ['scroll', 'Auto scroll', AlignJustify]] as const).map(([m, label, Icon]) => (
+                    <button
+                      key={m}
+                      onClick={() => onUpdateSettings({ readingMode: m })}
+                      className={`py-3 rounded-xl border-2 transition-all text-xs font-bold uppercase flex items-center justify-center gap-2 ${
+                        mode === m ? 'border-cyan-500 bg-cyan-500/10 text-cyan-500' : `${themeColors.border} ${themeColors.text} hover:bg-zinc-500/5`
+                      }`}
+                    >
+                      <Icon size={16} /> {label}
                     </button>
                   ))}
                 </div>

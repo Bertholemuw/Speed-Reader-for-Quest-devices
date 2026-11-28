@@ -15,6 +15,7 @@ const SETTINGS_KEY = 'quest_rsvp_settings';
 
 const DEFAULT_SETTINGS: UserSettings = {
   wpm: 350,
+  readingMode: 'rsvp',
   fontSize: 'medium',
   fontFamily: 'jetbrains',
   theme: 'dark'
